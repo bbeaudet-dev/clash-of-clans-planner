@@ -54,30 +54,47 @@ export interface VillageExport {
   inProgress: InProgressUpgrade[];
 }
 
-// Display order and labels for base categories.
-export const BASE_CATEGORY_ORDER = [
+// Town Hall, Walls, Builder Huts, B.O.B, and Helper Hut are lumped into a single
+// "village" section since their individual buildings aren't upgrade-planning
+// concerns on their own.
+const VILLAGE_MISC = new Set([
   "town hall",
-  "defense",
-  "trap",
-  "resource",
-  "army",
   "wall",
   "worker",
   "worker2",
   "helper",
+]);
+
+function displayCategory(category: string): string {
+  return VILLAGE_MISC.has(category) ? "village" : category;
+}
+
+// Display order and labels for base categories.
+export const BASE_CATEGORY_ORDER = [
+  "defense",
+  "trap",
+  "resource",
+  "army",
+  "village",
 ] as const;
 
 export const BASE_CATEGORY_LABELS: Record<string, string> = {
-  "town hall": "Town Hall",
   defense: "Defenses",
   trap: "Traps",
   resource: "Resource Buildings",
   army: "Army Buildings",
-  wall: "Walls",
-  worker: "Builder Huts",
-  worker2: "B.O.B",
-  helper: "Helper Hut",
+  village: "Village",
 };
+
+/** Total upgrade levels remaining across all instances of a building type. */
+export function rowLevelsToGo(row: BuildingRow): number {
+  if (row.cap === null) return 0;
+  const cap = row.cap;
+  return row.byLevel.reduce(
+    (sum, l) => sum + l.count * Math.max(0, cap - l.level),
+    0
+  );
+}
 
 function isVillageExport(value: unknown): value is RawExport {
   return (
@@ -141,7 +158,7 @@ export function parseVillageExport(input: string | unknown): VillageExport {
   for (const [id, levels] of byId) {
     const name = idToName[String(id)] ?? `#${id}`;
     const entity = getEntity(name);
-    const category = entity?.category ?? "other";
+    const category = displayCategory(entity?.category ?? "other");
     const cap = maxLevelAtTH(name, th);
 
     const byLevel: LevelCount[] = [...levels.entries()]

@@ -5,8 +5,7 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ApiPlayer, buildVillageStats } from "@/lib/gameData";
 import { parseVillageExport, VillageExport } from "@/lib/villageExport";
-import { VillageStatsView } from "@/components/VillageStats";
-import { BaseBuildingsView } from "@/components/BaseBuildings";
+import { Overview } from "@/components/Overview";
 
 const DEFAULT_TAG = "#Q8JJJ2UP";
 
@@ -24,8 +23,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [village, setVillage] = useState<VillageExport | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState<{
     parsed: VillageExport;
     raw: unknown;
@@ -51,6 +52,11 @@ export default function Home() {
     setVillage(parsed);
     setPending(null);
     setImportError(null);
+    setImportOpen(false);
+    const asOf = parsed.timestamp
+      ? new Date(parsed.timestamp * 1000).toLocaleString()
+      : "now";
+    setImportSuccess(`Imported village data (as of ${asOf}).`);
     try {
       await importVillageData({
         tag: parsed.tag ?? tag,
@@ -71,7 +77,7 @@ export default function Home() {
       const loadedTag = player?.tag ? normalizeTag(player.tag) : null;
       const exportTag = parsed.tag ? normalizeTag(parsed.tag) : null;
       if (loadedTag && exportTag && loadedTag !== exportTag) {
-        setPending({ parsed, raw }); // ask to confirm mismatch
+        setPending({ parsed, raw });
         return;
       }
       void applyImport(parsed, raw);
@@ -86,14 +92,16 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportText(await file.text());
+    setImportOpen(true);
   }
 
   const stats = player ? buildVillageStats(player) : null;
+  const hasData = stats || village;
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-12 dark:bg-black">
       <main className="w-full max-w-3xl">
-        <header className="mb-8">
+        <header className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
             Clash of Clans Planner
           </h1>
@@ -102,69 +110,91 @@ export default function Home() {
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="mb-4 flex gap-2">
-          <input
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            placeholder="#PLAYERTAG"
-            spellCheck={false}
-            className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          />
-          <button
-            type="submit"
-            disabled={loading || tag.trim().length === 0}
-            className="rounded-lg bg-zinc-900 px-5 py-2.5 font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            {loading ? "Loading…" : "Look up"}
-          </button>
-        </form>
-
-        <details className="mb-10 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <summary className="cursor-pointer text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Import village data (for defenses, traps &amp; buildings)
-          </summary>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-            In-game: Settings → More Settings → Download village data. Paste the
-            JSON below or upload the file.
-          </p>
-          <textarea
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            placeholder="Paste your village-data JSON here…"
-            rows={4}
-            spellCheck={false}
-            className="mt-3 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          />
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={importText.trim().length === 0}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              Import
-            </button>
+        <div className="mb-3 flex gap-2">
+          <form onSubmit={handleSubmit} className="flex flex-1 gap-2">
             <input
-              ref={fileRef}
-              type="file"
-              accept=".json,application/json"
-              onChange={handleFile}
-              className="hidden"
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+              placeholder="#PLAYERTAG"
+              spellCheck={false}
+              className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             />
             <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              type="submit"
+              disabled={loading || tag.trim().length === 0}
+              className="rounded-lg bg-zinc-900 px-5 py-2.5 font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             >
-              Upload file
+              {loading ? "Loading…" : "Look up"}
+            </button>
+          </form>
+          <button
+            type="button"
+            onClick={() => setImportOpen((o) => !o)}
+            className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Import village data
+          </button>
+        </div>
+
+        {importOpen && (
+          <div className="mb-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              In-game: Settings → More Settings → Download village data. Paste the
+              JSON below or upload the file.
+            </p>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="Paste your village-data JSON here…"
+              rows={4}
+              spellCheck={false}
+              className="mt-3 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={importText.trim().length === 0}
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              >
+                Import
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFile}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                Upload file
+              </button>
+            </div>
+            {importError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                {importError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {importSuccess && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+            <span>{importSuccess}</span>
+            <button
+              type="button"
+              onClick={() => setImportSuccess(null)}
+              className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400"
+              aria-label="Dismiss"
+            >
+              ✕
             </button>
           </div>
-          {importError && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-              {importError}
-            </p>
-          )}
-        </details>
+        )}
 
         {pending && (
           <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
@@ -197,16 +227,19 @@ export default function Home() {
           </div>
         )}
 
-        {stats && player && (
-          <VillageStatsView playerName={player.name} stats={stats} />
-        )}
-
-        {village && <BaseBuildingsView village={village} />}
-
-        {!stats && !village && !error && !loading && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Try the default tag above, or paste your own.
-          </p>
+        {hasData ? (
+          <Overview
+            playerName={player?.name ?? null}
+            stats={stats}
+            village={village}
+          />
+        ) : (
+          !error &&
+          !loading && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Try the default tag above, or paste your own.
+            </p>
+          )
         )}
       </main>
     </div>

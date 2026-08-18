@@ -40,6 +40,18 @@ Laboratory track. Both cut time and cost, up to 20% (10% ~Day 1, 15% ~Day 4,
 - [done] Village stats view: heroes/pets/spells/troops/siege, current vs TH cap.
 - [done] Progress bar with ticks for previous / current / next TH max levels
   (all from coc-info at th-1 / th / th+1).
+- [done] Unified overview: one header (name, TH, maxed count, total levels to go)
+  over army + buildings as peer sections; buildings styled like troops; misc
+  (TH, walls, builder huts, B.O.B, helper hut) collapsed into one "Village"
+  section; import + tag lookup share a row with success + auto-collapse.
+- [done] Exclude Super Troops — they have no independent upgrade levels (the API
+  marks them with `superTroopIsActive`), so they were showing bogus caps.
+- [idea] Super Troops availability instead of levels: show which supers the
+  player can boost (base troop must be at/above the required level) and which
+  they can request/donate via CC. Both gate on TH level; needs a super-troop
+  unlock table (required TH + required base-troop level).
+- [idea] Fetch helper (hero-helper) levels from the export's `helpers` array —
+  they do carry a `lvl`, so we could surface them in the Village section.
 
 ## Phase 2 — Track time-to-max (core engine)
 
