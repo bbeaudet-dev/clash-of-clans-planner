@@ -33,7 +33,9 @@ function categoryFor(sourceKey, entity) {
     case "troops":
       return entity.production_building === "Workshop" ? "siege" : "troop";
     case "buildings":
-      return entity.type ?? "building";
+      // Normalize to lowercase so grouping is predictable: defense, resource,
+      // army, wall, town hall, worker (+ builder-base "town hall2"/"worker2").
+      return (entity.type ?? "building").toLowerCase();
     default:
       return sourceKey;
   }
