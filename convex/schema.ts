@@ -11,5 +11,9 @@ export default defineSchema({
     townHallLevel: v.number(),
     raw: v.any(),
     fetchedAt: v.number(),
+    // "api" (from the official API) or "export" (in-game village-data JSON).
+    source: v.optional(v.string()),
+    // Unix seconds from the export's own timestamp, when source == "export".
+    exportTimestamp: v.optional(v.number()),
   }).index("by_tag", ["tag"]),
 });

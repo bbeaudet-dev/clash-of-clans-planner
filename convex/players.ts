@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action, internalMutation, query } from "./_generated/server";
+import { action, internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 // RoyaleAPI proxy lets us call the official CoC API from a host without a
@@ -58,7 +58,35 @@ export const storeSnapshot = internalMutation({
     raw: v.any(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("baseSnapshots", { ...args, fetchedAt: Date.now() });
+    await ctx.db.insert("baseSnapshots", {
+      ...args,
+      source: "api",
+      fetchedAt: Date.now(),
+    });
+  },
+});
+
+// Public mutation: store a user-imported village-data export (no external
+// fetch, so a plain mutation is fine).
+export const importVillageData = mutation({
+  args: {
+    tag: v.string(),
+    townHallLevel: v.number(),
+    raw: v.any(),
+    exportTimestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const tag = normalizeTag(args.tag);
+    await ctx.db.insert("baseSnapshots", {
+      tag,
+      name: "Imported village data",
+      townHallLevel: args.townHallLevel,
+      raw: args.raw,
+      source: "export",
+      exportTimestamp: args.exportTimestamp,
+      fetchedAt: Date.now(),
+    });
+    return { tag };
   },
 });
 
