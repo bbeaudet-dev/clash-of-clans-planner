@@ -58,6 +58,9 @@ for (const key of SOURCE_KEYS) {
       category: categoryFor(key, e),
       village,
       resource: e.upgrade_resource ?? null,
+      // Super troops (marked by a `super_troop` block in the source) are boosted
+      // variants with no independent upgrade level, so we flag and exclude them.
+      ...(e.super_troop ? { isSuper: true } : {}),
       levels: (e.levels ?? []).map(levelRow),
     };
 

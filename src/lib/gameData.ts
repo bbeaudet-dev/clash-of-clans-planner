@@ -36,6 +36,7 @@ interface GameEntity {
   category: string;
   village: string;
   resource: string | null;
+  isSuper?: boolean;
   levels: GameLevel[];
 }
 
@@ -165,7 +166,11 @@ export function buildVillageStats(player: ApiPlayer): VillageStats {
 
   for (const item of items) {
     if (item.village && item.village !== "home") continue;
-    if (item.superTroopIsActive) continue;
+    // Super troops have no independent upgrade level. The API only marks the
+    // currently-boosted one via superTroopIsActive, so we rely on our own
+    // rulebook flag (isSuper) to exclude all of them.
+    if (item.superTroopIsActive !== undefined) continue;
+    if (getEntity(item.name)?.isSuper) continue;
     const category = toCategory(item.name);
     if (!category) continue;
 
