@@ -4,9 +4,19 @@ import {
   BASE_CATEGORY_ORDER,
   BuildingRow,
   buildingProgress,
-  rowLevelsToGo,
   VillageExport,
 } from "@/lib/villageExport";
+import { computeBaseSummary, formatDuration } from "@/lib/tracks";
+
+// Rushed thresholds, in days of total upgrade work still owed below the
+// previous TH caps. Below 60d is a light rush, 60–100d moderate, >100d heavy.
+function rushColor(seconds: number): string {
+  const days = seconds / 86400;
+  if (days <= 0) return "text-emerald-600 dark:text-emerald-400";
+  if (days < 60) return "text-yellow-600 dark:text-yellow-400";
+  if (days <= 100) return "text-orange-600 dark:text-orange-400";
+  return "text-red-600 dark:text-red-400";
+}
 
 function Bar({ pct, maxed }: { pct: number; maxed: boolean }) {
   return (
@@ -168,36 +178,16 @@ function SectionCard({
 
 export function Overview({
   playerName,
+  playerTag,
   stats,
   village,
 }: {
   playerName: string | null;
+  playerTag: string | null;
   stats: VillageStats | null;
   village: VillageExport | null;
 }) {
-  const armyRows = stats?.groups.flatMap((g) => g.rows) ?? [];
-  const buildingRows = village?.groups.flatMap((g) => g.rows) ?? [];
-
-  const armyMaxed = armyRows.filter(
-    (r) => r.thMax !== null && r.remaining === 0
-  ).length;
-  const armyLevelsToGo = armyRows.reduce((s, r) => s + r.remaining, 0);
-
-  const buildingInstances = buildingRows.reduce((s, r) => s + r.total, 0);
-  // Untracked buildings (no cap) can't be upgraded, so count them as maxed.
-  const buildingMaxed = buildingRows.reduce(
-    (s, r) => s + (r.cap === null ? r.total : r.maxedCount),
-    0
-  );
-  const buildingLevelsToGo = buildingRows.reduce(
-    (s, r) => s + rowLevelsToGo(r),
-    0
-  );
-
-  const totalThings = armyRows.length + buildingInstances;
-  const totalMaxed = armyMaxed + buildingMaxed;
-  const totalLevelsToGo = armyLevelsToGo + buildingLevelsToGo;
-
+  const summary = computeBaseSummary(stats, village);
   const townHallLevel = stats?.townHallLevel ?? village?.townHallLevel ?? 0;
 
   const buildingOrder = (c: string) => {
@@ -212,17 +202,32 @@ export function Overview({
 
   return (
     <div className="w-full">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-          {playerName ?? "Village"}
-        </h2>
+      <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div>
+          <h2 className="text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
+            {playerName ?? "Village"}
+          </h2>
+          {playerTag && (
+            <p className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+              {playerTag}
+            </p>
+          )}
+        </div>
         {townHallLevel > 0 && (
           <span className="rounded-full bg-zinc-900 px-2.5 py-0.5 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
             TH{townHallLevel}
           </span>
         )}
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {totalMaxed}/{totalThings} maxed · {totalLevelsToGo} levels to go
+        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          {summary.pctToMax}% to max
+        </span>
+        <span
+          className={`text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
+          title="Total upgrade time still owed below the previous Town Hall's caps"
+        >
+          {summary.rushedSeconds > 0
+            ? `${formatDuration(summary.rushedSeconds)} rushed`
+            : "0d 0h rushed"}
         </span>
       </div>
 

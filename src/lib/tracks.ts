@@ -234,6 +234,76 @@ export function computeTracks(
   ];
 }
 
+export interface BaseSummary {
+  /** Sum of current levels across all tracked army + buildings. */
+  currentLevels: number;
+  /** Sum of the current-TH caps for those same items. */
+  maxLevels: number;
+  /** Progress to a fully-maxed current TH, 0..100 (100 only when truly maxed). */
+  pctToMax: number;
+  /** Upgrade time still owed below the *previous* TH caps (how "rushed" the base is). */
+  rushedSeconds: number;
+}
+
+/**
+ * Overall base progress: a rush-agnostic "% to max" (total current levels vs the
+ * current TH's caps) plus a "rushed" figure — the total upgrade time still owed
+ * to reach the *previous* TH's caps on everything (heroes, troops, spells, pets,
+ * defenses, traps, …). The Town Hall itself is treated as maxed at its current
+ * level so its next-TH upgrade doesn't make 100% unreachable.
+ */
+export function computeBaseSummary(
+  stats: VillageStats | null,
+  village: VillageExport | null
+): BaseSummary {
+  let currentLevels = 0;
+  let maxLevels = 0;
+  let rushedSeconds = 0;
+
+  if (stats) {
+    for (const g of stats.groups) {
+      for (const r of g.rows) {
+        if (r.thMax === null) continue;
+        currentLevels += Math.min(r.level, r.thMax);
+        maxLevels += r.thMax;
+        if (r.prevThMax !== null && r.level < r.prevThMax) {
+          rushedSeconds += upgradeTime(r.name, r.level, r.prevThMax);
+        }
+      }
+    }
+  }
+
+  if (village) {
+    for (const g of village.groups) {
+      for (const r of g.rows) {
+        if (r.cap === null) continue; // untracked (B.O.B, Helper Hut, …)
+        const isTownHall = getEntity(r.name)?.category === "town hall";
+        // The TH's data cap is the *next* TH's level, so pin it to its current
+        // level for progress purposes (you can't be "more maxed" than your TH).
+        const cap = isTownHall
+          ? Math.max(...r.byLevel.map((l) => l.level))
+          : r.cap;
+        maxLevels += cap * r.total;
+        for (const bl of r.byLevel) {
+          currentLevels += Math.min(bl.level, cap) * bl.count;
+          if (!isTownHall && r.prevCap !== null && bl.level < r.prevCap) {
+            rushedSeconds += upgradeTime(r.name, bl.level, r.prevCap) * bl.count;
+          }
+        }
+      }
+    }
+  }
+
+  const pctToMax =
+    maxLevels === 0
+      ? 0
+      : currentLevels >= maxLevels
+        ? 100
+        : Math.min(99, Math.round((currentLevels / maxLevels) * 100));
+
+  return { currentLevels, maxLevels, pctToMax, rushedSeconds };
+}
+
 /** Format a duration in seconds as a compact "Xd Yh" / "Yh Zm" / "Zm" string. */
 export function formatDuration(seconds: number): string {
   if (seconds <= 0) return "0m";

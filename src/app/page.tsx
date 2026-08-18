@@ -353,6 +353,7 @@ export default function Home() {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <Overview
               playerName={player?.name ?? null}
+              playerTag={player?.tag ?? null}
               stats={stats}
               village={village}
             />
