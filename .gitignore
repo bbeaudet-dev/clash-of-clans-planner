@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# personal in-game village-data exports (contain a player's base data)
+docs/village-data.JSON
+*village-data*.json
+
 # vercel
 .vercel
 
