@@ -73,9 +73,10 @@ function ArmyRow({ row }: { row: StatRow }) {
 
 function BuildingRowItem({ row }: { row: BuildingRow }) {
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
-  const showBreakdown = row.total > 1;
+  const multiple = row.total > 1;
 
-  // Untracked buildings (no cap known: B.O.B, Helper Hut, etc.) just show levels.
+  // Untracked buildings (no cap known: B.O.B, Helper Hut, etc.) are never
+  // upgraded, so show them as complete rather than "not maxed".
   if (row.cap === null) {
     return (
       <li className="py-1.5">
@@ -92,11 +93,15 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
     );
   }
 
-  const { bandTotal, doneInBand, catchUp, remaining } = buildingProgress(row);
+  const { catchUp, remaining } = buildingProgress(row);
   const isMaxed = remaining === 0;
-  const denom = catchUp + bandTotal;
-  const donePct = denom > 0 ? (doneInBand / denom) * 100 : 100;
-  const catchUpPct = denom > 0 ? (catchUp / denom) * 100 : 0;
+  const sumLevels = row.byLevel.reduce((s, l) => s + l.level * l.count, 0);
+  const sumCap = row.cap * row.total;
+  const pct = sumCap > 0 ? Math.min(100, (sumLevels / sumCap) * 100) : 0;
+  // A single number that reads like a troop level: exact when all instances
+  // share a level, otherwise the average across instances.
+  const avg = sumLevels / row.total;
+  const avgStr = row.byLevel.length === 1 ? String(avg) : avg.toFixed(1);
 
   return (
     <li className="py-1.5">
@@ -110,31 +115,29 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
               {catchUp} catch-up
             </span>
           )}
-          {isMaxed ? (
-            <span className="text-emerald-600 dark:text-emerald-400">maxed</span>
-          ) : bandTotal > 0 ? (
-            <span>
-              <span className="text-zinc-900 dark:text-zinc-100">
-                {doneInBand}
-              </span>
-              <span className="text-zinc-400">/{bandTotal}</span>
+          <span>
+            <span
+              className={
+                isMaxed
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-900 dark:text-zinc-100"
+              }
+            >
+              {avgStr}
             </span>
-          ) : null}
+            <span className="text-zinc-400"> / {row.cap}</span>
+          </span>
         </span>
       </div>
-      <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-        {isMaxed ? (
-          <div className="h-full w-full bg-emerald-500" />
-        ) : (
-          <>
-            <div className="h-full bg-emerald-500" style={{ width: `${donePct}%` }} />
-            <div className="h-full bg-red-500" style={{ width: `${catchUpPct}%` }} />
-          </>
-        )}
-      </div>
-      {showBreakdown && (
+      <Bar pct={pct} maxed={isMaxed} />
+      {(!isMaxed || multiple) && (
         <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
-          <span>{breakdown}</span>
+          {!isMaxed && (
+            <span className="text-emerald-600 dark:text-emerald-400">
+              +{remaining} to max
+            </span>
+          )}
+          {multiple && <span>{breakdown}</span>}
         </div>
       )}
     </li>
@@ -181,7 +184,11 @@ export function Overview({
   const armyLevelsToGo = armyRows.reduce((s, r) => s + r.remaining, 0);
 
   const buildingInstances = buildingRows.reduce((s, r) => s + r.total, 0);
-  const buildingMaxed = buildingRows.reduce((s, r) => s + r.maxedCount, 0);
+  // Untracked buildings (no cap) can't be upgraded, so count them as maxed.
+  const buildingMaxed = buildingRows.reduce(
+    (s, r) => s + (r.cap === null ? r.total : r.maxedCount),
+    0
+  );
   const buildingLevelsToGo = buildingRows.reduce(
     (s, r) => s + rowLevelsToGo(r),
     0
