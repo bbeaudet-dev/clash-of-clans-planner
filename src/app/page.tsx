@@ -55,8 +55,8 @@ export default function Home() {
     setImportOpen(false);
     const asOf = parsed.timestamp
       ? new Date(parsed.timestamp * 1000).toLocaleString()
-      : "now";
-    setImportSuccess(`Imported village data (as of ${asOf}).`);
+      : new Date().toLocaleString();
+    setImportSuccess(`Updated ${asOf}`);
     try {
       await importVillageData({
         tag: parsed.tag ?? tag,
@@ -110,14 +110,14 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="mb-3 flex gap-2">
-          <form onSubmit={handleSubmit} className="flex flex-1 gap-2">
+        <div className="mb-6 grid items-start gap-4 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               value={tag}
               onChange={(e) => setTag(e.target.value)}
               placeholder="#PLAYERTAG"
               spellCheck={false}
-              className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             />
             <button
               type="submit"
@@ -127,74 +127,73 @@ export default function Home() {
               {loading ? "Loading…" : "Look up"}
             </button>
           </form>
-          <button
-            type="button"
-            onClick={() => setImportOpen((o) => !o)}
-            className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-          >
-            Import village data
-          </button>
-        </div>
 
-        {importOpen && (
-          <div className="mb-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              In-game: Settings → More Settings → Download village data. Paste the
-              JSON below or upload the file.
-            </p>
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="Paste your village-data JSON here…"
-              rows={4}
-              spellCheck={false}
-              className="mt-3 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-            />
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleImport}
-                disabled={importText.trim().length === 0}
-                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              >
-                Import
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json,application/json"
-                onChange={handleFile}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-              >
-                Upload file
-              </button>
-            </div>
-            {importError && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                {importError}
-              </p>
-            )}
-          </div>
-        )}
-
-        {importSuccess && (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
-            <span>{importSuccess}</span>
+          <div>
             <button
               type="button"
-              onClick={() => setImportSuccess(null)}
-              className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400"
-              aria-label="Dismiss"
+              onClick={() => setImportOpen((o) => !o)}
+              className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
             >
-              ✕
+              Import village data
             </button>
+
+            {importSuccess && !importOpen && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                <span aria-hidden>✓</span>
+                {importSuccess}
+              </p>
+            )}
+
+            {importOpen && (
+              <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  In Clash of Clans, tap the <strong>Settings</strong> button
+                  (gear icon), then <strong>More Settings</strong>. Scroll to the{" "}
+                  <strong>Data Export</strong> section and tap{" "}
+                  <strong>copy</strong> on &ldquo;Export village data in JSON
+                  format&rdquo;. Paste it below (or upload the file).
+                </p>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Paste your village-data JSON here…"
+                  rows={4}
+                  spellCheck={false}
+                  className="mt-3 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleImport}
+                    disabled={importText.trim().length === 0}
+                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  >
+                    Import
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleFile}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  >
+                    Upload file
+                  </button>
+                </div>
+                {importError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                    {importError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {pending && (
           <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
@@ -227,19 +226,12 @@ export default function Home() {
           </div>
         )}
 
-        {hasData ? (
+        {hasData && (
           <Overview
             playerName={player?.name ?? null}
             stats={stats}
             village={village}
           />
-        ) : (
-          !error &&
-          !loading && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Try the default tag above, or paste your own.
-            </p>
-          )
         )}
       </main>
     </div>
