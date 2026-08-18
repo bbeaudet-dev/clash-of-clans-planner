@@ -1,4 +1,11 @@
-import { CATEGORY_LABELS, StatRow, VillageStats } from "@/lib/gameData";
+import {
+  Category,
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  CATEGORY_UNLOCK_TH,
+  StatRow,
+  VillageStats,
+} from "@/lib/gameData";
 import {
   BASE_CATEGORY_LABELS,
   BASE_CATEGORY_ORDER,
@@ -37,6 +44,11 @@ function ArmyRow({ row }: { row: StatRow }) {
     row.thMax && row.thMax > 0
       ? Math.min(100, Math.round((row.level / row.thMax) * 100))
       : 0;
+  // Levels still owed below the previous TH cap (i.e. this unit is "rushed").
+  const catchUp =
+    row.prevThMax !== null && row.level < row.prevThMax
+      ? row.prevThMax - row.level
+      : 0;
   const showPrev =
     row.prevThMax !== null && row.prevThMax > 0 && row.prevThMax < (row.thMax ?? 0);
   const showNext =
@@ -48,18 +60,25 @@ function ArmyRow({ row }: { row: StatRow }) {
         <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {row.name}
         </span>
-        <span className="shrink-0 font-mono text-xs">
-          <span
-            className={
-              isMaxed
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-zinc-900 dark:text-zinc-100"
-            }
-          >
-            {row.level}
-          </span>
-          <span className="text-zinc-400">
-            {row.thMax !== null ? ` / ${row.thMax}` : ""}
+        <span className="flex shrink-0 items-center gap-2 font-mono text-xs">
+          {catchUp > 0 && (
+            <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+              {catchUp} catch-up
+            </span>
+          )}
+          <span>
+            <span
+              className={
+                isMaxed
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-900 dark:text-zinc-100"
+              }
+            >
+              {row.level}
+            </span>
+            <span className="text-zinc-400">
+              {row.thMax !== null ? ` / ${row.thMax}` : ""}
+            </span>
           </span>
         </span>
       </div>
@@ -157,21 +176,47 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
 function SectionCard({
   title,
   count,
+  locked = false,
+  note,
   children,
 }: {
   title: string;
-  count: number;
-  children: React.ReactNode;
+  count?: number;
+  /** Renders the whole section muted (e.g. not yet unlocked at this TH). */
+  locked?: boolean;
+  /** A muted line to show in place of rows (locked reason, empty state, …). */
+  note?: string;
+  children?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <section
+      className={`rounded-xl border p-4 ${
+        locked
+          ? "border-zinc-200/70 bg-zinc-50/50 dark:border-zinc-800/60 dark:bg-zinc-950/40"
+          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+      }`}
+    >
+      <h3
+        className={`mb-1 text-sm font-semibold uppercase tracking-wide ${
+          locked
+            ? "text-zinc-400 dark:text-zinc-600"
+            : "text-zinc-500 dark:text-zinc-400"
+        }`}
+      >
         {title}
-        <span className="ml-2 font-normal normal-case text-zinc-400">
-          ({count})
-        </span>
+        {count !== undefined && !locked && (
+          <span className="ml-2 font-normal normal-case text-zinc-400">
+            ({count})
+          </span>
+        )}
       </h3>
-      <ul>{children}</ul>
+      {note ? (
+        <p className="py-1 text-xs italic text-zinc-400 dark:text-zinc-600">
+          {note}
+        </p>
+      ) : (
+        <ul>{children}</ul>
+      )}
     </section>
   );
 }
@@ -190,15 +235,10 @@ export function Overview({
   const summary = computeBaseSummary(stats, village);
   const townHallLevel = stats?.townHallLevel ?? village?.townHallLevel ?? 0;
 
-  const buildingOrder = (c: string) => {
-    const i = (BASE_CATEGORY_ORDER as readonly string[]).indexOf(c);
-    return i === -1 ? 99 : i;
-  };
-  const buildingGroups = village
-    ? [...village.groups].sort(
-        (a, b) => buildingOrder(a.category) - buildingOrder(b.category)
-      )
-    : [];
+  const armyGroup = (c: Category) =>
+    stats?.groups.find((g) => g.category === c) ?? null;
+  const buildingGroup = (c: string) =>
+    village?.groups.find((g) => g.category === c) ?? null;
 
   return (
     <div className="w-full">
@@ -232,29 +272,47 @@ export function Overview({
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2">
-        {stats?.groups.map((group) => (
-          <SectionCard
-            key={`army-${group.category}`}
-            title={CATEGORY_LABELS[group.category]}
-            count={group.rows.length}
-          >
-            {group.rows.map((row) => (
-              <ArmyRow key={row.name} row={row} />
-            ))}
-          </SectionCard>
-        ))}
+        {CATEGORY_ORDER.map((category) => {
+          const unlockTH = CATEGORY_UNLOCK_TH[category];
+          // Only show a category once it's unlocked at this TH; not-yet-unlocked
+          // categories (e.g. Pets, Guardians) simply appear when reached.
+          if (townHallLevel > 0 && unlockTH > townHallLevel) return null;
+          const group = armyGroup(category);
+          return (
+            <SectionCard
+              key={`army-${category}`}
+              title={CATEGORY_LABELS[category]}
+              count={group?.rows.length ?? 0}
+              note={group && group.rows.length > 0 ? undefined : "None yet"}
+            >
+              {group?.rows.map((row) => (
+                <ArmyRow key={row.name} row={row} />
+              ))}
+            </SectionCard>
+          );
+        })}
 
-        {buildingGroups.map((group) => (
-          <SectionCard
-            key={`base-${group.category}`}
-            title={BASE_CATEGORY_LABELS[group.category] ?? group.category}
-            count={group.rows.length}
-          >
-            {group.rows.map((row) => (
-              <BuildingRowItem key={row.id} row={row} />
-            ))}
-          </SectionCard>
-        ))}
+        {BASE_CATEGORY_ORDER.map((category) => {
+          const group = buildingGroup(category);
+          return (
+            <SectionCard
+              key={`base-${category}`}
+              title={BASE_CATEGORY_LABELS[category] ?? category}
+              count={group?.rows.length ?? 0}
+              note={
+                group && group.rows.length > 0
+                  ? undefined
+                  : village
+                    ? "None"
+                    : "Import village data to view"
+              }
+            >
+              {group?.rows.map((row) => (
+                <BuildingRowItem key={row.id} row={row} />
+              ))}
+            </SectionCard>
+          );
+        })}
       </div>
     </div>
   );

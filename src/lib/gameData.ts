@@ -5,7 +5,7 @@ import rawGameData from "@/data/gameData.generated.json";
 //   - Builder track: heroes (+ buildings/defenses/traps, added later)
 //   - Laboratory track: troops, spells, siege machines
 //   - Pets track: pets
-export type Category = "hero" | "pet" | "troop" | "siege" | "spell";
+export type Category = "hero" | "pet" | "troop" | "siege" | "spell" | "guardian";
 
 export const CATEGORY_ORDER: Category[] = [
   "hero",
@@ -13,6 +13,7 @@ export const CATEGORY_ORDER: Category[] = [
   "spell",
   "troop",
   "siege",
+  "guardian",
 ];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -21,6 +22,18 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   spell: "Spells",
   troop: "Troops",
   siege: "Siege Machines",
+  guardian: "Guardians",
+};
+
+// Town Hall level at which each army category first becomes available. Used to
+// show whole sections as "locked" (rather than empty) below that TH.
+export const CATEGORY_UNLOCK_TH: Record<Category, number> = {
+  hero: 7, // Barbarian King
+  spell: 5, // Spell Factory
+  troop: 1, // Barracks
+  siege: 12, // Workshop
+  pet: 14, // Pet House
+  guardian: 18, // Guardians
 };
 
 interface GameLevel {

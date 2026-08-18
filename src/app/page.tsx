@@ -83,7 +83,7 @@ export default function Home() {
           const asOf = parsed.timestamp
             ? new Date(parsed.timestamp * 1000).toLocaleString()
             : new Date(accountData.exportSnapshot.fetchedAt).toLocaleString();
-          setImportSuccess(`Saved export ${asOf}`);
+          setImportSuccess(`Last import: ${asOf}`);
         } catch {
           setVillage(null);
           setImportSuccess(null);
@@ -119,7 +119,7 @@ export default function Home() {
     const asOf = parsed.timestamp
       ? new Date(parsed.timestamp * 1000).toLocaleString()
       : new Date().toLocaleString();
-    setImportSuccess(`Updated ${asOf}`);
+    setImportSuccess(`Last import: ${asOf}`);
     try {
       await importVillageData({
         tag: parsed.tag ?? tag,
