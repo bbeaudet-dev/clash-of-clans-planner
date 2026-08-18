@@ -32,11 +32,52 @@ export interface BuildingRow {
   name: string;
   category: string;
   cap: number | null;
+  /** Max level attainable at the PREVIOUS Town Hall (null if new this TH). */
+  prevCap: number | null;
   total: number;
   /** Count of instances already at the TH cap. */
   maxedCount: number;
   /** Instance counts by level, highest level first. */
   byLevel: LevelCount[];
+}
+
+export interface BuildingProgress {
+  /** New levels this Town Hall added, summed across all instances. */
+  bandTotal: number;
+  /** New-band levels already completed. */
+  doneInBand: number;
+  /** Levels owed from before (instances below the previous TH cap). */
+  catchUp: number;
+  /** Total levels remaining to reach the current TH cap. */
+  remaining: number;
+}
+
+/**
+ * Split a building type's progress into the current TH's "new levels" band and
+ * any "catch-up" levels still owed from the previous TH (when the player rushed
+ * ahead before finishing the last TH's upgrades).
+ */
+export function buildingProgress(row: BuildingRow): BuildingProgress {
+  if (row.cap === null) {
+    return { bandTotal: 0, doneInBand: 0, catchUp: 0, remaining: 0 };
+  }
+  const cap = row.cap;
+  const prev = row.prevCap ?? 0;
+  const band = Math.max(0, cap - prev);
+  let bandTotal = 0;
+  let doneInBand = 0;
+  let catchUp = 0;
+  for (const l of row.byLevel) {
+    bandTotal += band * l.count;
+    catchUp += Math.max(0, prev - l.level) * l.count;
+    doneInBand += Math.min(band, Math.max(0, l.level - prev)) * l.count;
+  }
+  return {
+    bandTotal,
+    doneInBand,
+    catchUp,
+    remaining: catchUp + (bandTotal - doneInBand),
+  };
 }
 
 export interface InProgressUpgrade {
@@ -88,12 +129,7 @@ export const BASE_CATEGORY_LABELS: Record<string, string> = {
 
 /** Total upgrade levels remaining across all instances of a building type. */
 export function rowLevelsToGo(row: BuildingRow): number {
-  if (row.cap === null) return 0;
-  const cap = row.cap;
-  return row.byLevel.reduce(
-    (sum, l) => sum + l.count * Math.max(0, cap - l.level),
-    0
-  );
+  return buildingProgress(row).remaining;
 }
 
 function isVillageExport(value: unknown): value is RawExport {
@@ -160,6 +196,7 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     const entity = getEntity(name);
     const category = displayCategory(entity?.category ?? "other");
     const cap = maxLevelAtTH(name, th);
+    const prevCap = th > 1 ? maxLevelAtTH(name, th - 1) : null;
 
     const byLevel: LevelCount[] = [...levels.entries()]
       .map(([level, count]) => ({ level, count }))
@@ -168,7 +205,7 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     const maxedCount =
       cap === null ? 0 : byLevel.filter((l) => l.level >= cap).reduce((s, l) => s + l.count, 0);
 
-    const row: BuildingRow = { id, name, category, cap, total, maxedCount, byLevel };
+    const row: BuildingRow = { id, name, category, cap, prevCap, total, maxedCount, byLevel };
     const list = rowsByCategory.get(category) ?? [];
     list.push(row);
     rowsByCategory.set(category, list);

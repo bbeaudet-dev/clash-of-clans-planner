@@ -3,6 +3,7 @@ import {
   BASE_CATEGORY_LABELS,
   BASE_CATEGORY_ORDER,
   BuildingRow,
+  buildingProgress,
   rowLevelsToGo,
   VillageExport,
 } from "@/lib/villageExport";
@@ -71,16 +72,31 @@ function ArmyRow({ row }: { row: StatRow }) {
 }
 
 function BuildingRowItem({ row }: { row: BuildingRow }) {
-  const single = row.total === 1;
-  const allMaxed = row.cap !== null && row.maxedCount === row.total;
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
+  const showBreakdown = row.total > 1;
 
-  let pct = 100;
-  if (row.cap !== null) {
-    pct = single
-      ? Math.min(100, Math.round((row.byLevel[0].level / row.cap) * 100))
-      : Math.round((row.maxedCount / row.total) * 100);
+  // Untracked buildings (no cap known: B.O.B, Helper Hut, etc.) just show levels.
+  if (row.cap === null) {
+    return (
+      <li className="py-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {row.name}
+          </span>
+          <span className="shrink-0 font-mono text-xs text-zinc-400">
+            {breakdown}
+          </span>
+        </div>
+        <Bar pct={100} maxed />
+      </li>
+    );
   }
+
+  const { bandTotal, doneInBand, catchUp, remaining } = buildingProgress(row);
+  const isMaxed = remaining === 0;
+  const denom = catchUp + bandTotal;
+  const donePct = denom > 0 ? (doneInBand / denom) * 100 : 100;
+  const catchUpPct = denom > 0 ? (catchUp / denom) * 100 : 0;
 
   return (
     <li className="py-1.5">
@@ -88,37 +104,35 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
         <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {row.name}
         </span>
-        <span className="shrink-0 font-mono text-xs">
-          {row.cap === null ? (
-            <span className="text-zinc-400">{breakdown}</span>
-          ) : single ? (
-            <>
-              <span
-                className={
-                  allMaxed
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-zinc-900 dark:text-zinc-100"
-                }
-              >
-                {row.byLevel[0].level}
-              </span>
-              <span className="text-zinc-400"> / {row.cap}</span>
-            </>
-          ) : (
-            <span
-              className={
-                allMaxed
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-zinc-900 dark:text-zinc-100"
-              }
-            >
-              {row.maxedCount}/{row.total} maxed
+        <span className="flex shrink-0 items-center gap-2 font-mono text-xs">
+          {catchUp > 0 && (
+            <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+              {catchUp} catch-up
             </span>
           )}
+          {isMaxed ? (
+            <span className="text-emerald-600 dark:text-emerald-400">maxed</span>
+          ) : bandTotal > 0 ? (
+            <span>
+              <span className="text-zinc-900 dark:text-zinc-100">
+                {doneInBand}
+              </span>
+              <span className="text-zinc-400">/{bandTotal}</span>
+            </span>
+          ) : null}
         </span>
       </div>
-      <Bar pct={pct} maxed={allMaxed || row.cap === null} />
-      {!single && row.cap !== null && (
+      <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+        {isMaxed ? (
+          <div className="h-full w-full bg-emerald-500" />
+        ) : (
+          <>
+            <div className="h-full bg-emerald-500" style={{ width: `${donePct}%` }} />
+            <div className="h-full bg-red-500" style={{ width: `${catchUpPct}%` }} />
+          </>
+        )}
+      </div>
+      {showBreakdown && (
         <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
           <span>{breakdown}</span>
         </div>
