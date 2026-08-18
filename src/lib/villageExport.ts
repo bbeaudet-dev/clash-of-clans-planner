@@ -20,6 +20,7 @@ interface RawExport {
   timestamp?: number;
   buildings?: RawEntry[];
   traps?: RawEntry[];
+  helpers?: RawEntry[];
 }
 
 export interface LevelCount {
@@ -110,12 +111,19 @@ function displayCategory(category: string): string {
   return VILLAGE_MISC.has(category) ? "village" : category;
 }
 
-// Display order and labels for base categories.
+// Helpers present in the export but not (yet) in the rulebook data. They have no
+// upgrade levels, so we show them as a complete single-level helper.
+const HELPER_FALLBACK_NAMES: Record<number, string> = {
+  93000003: "Prospector",
+};
+
+// Display order and labels for base categories (roughly in-game order).
 export const BASE_CATEGORY_ORDER = [
   "defense",
   "trap",
   "resource",
   "army",
+  "helper",
   "village",
 ] as const;
 
@@ -124,6 +132,7 @@ export const BASE_CATEGORY_LABELS: Record<string, string> = {
   trap: "Traps",
   resource: "Resource Buildings",
   army: "Army Buildings",
+  helper: "Helpers",
   village: "Village",
 };
 
@@ -191,10 +200,13 @@ export function parseVillageExport(input: string | unknown): VillageExport {
 
   const rowsByCategory = new Map<string, BuildingRow[]>();
 
-  for (const [id, levels] of byId) {
-    const name = idToName[String(id)] ?? `#${id}`;
-    const entity = getEntity(name);
-    const category = displayCategory(entity?.category ?? "other");
+  const pushRow = (
+    id: number,
+    levels: Map<number, number>,
+    category: string,
+    nameOverride?: string
+  ) => {
+    const name = nameOverride ?? idToName[String(id)] ?? `#${id}`;
     const cap = maxLevelAtTH(name, th);
     const prevCap = th > 1 ? maxLevelAtTH(name, th - 1) : null;
 
@@ -203,12 +215,31 @@ export function parseVillageExport(input: string | unknown): VillageExport {
       .sort((a, b) => b.level - a.level);
     const total = byLevel.reduce((s, l) => s + l.count, 0);
     const maxedCount =
-      cap === null ? 0 : byLevel.filter((l) => l.level >= cap).reduce((s, l) => s + l.count, 0);
+      cap === null
+        ? 0
+        : byLevel.filter((l) => l.level >= cap).reduce((s, l) => s + l.count, 0);
 
     const row: BuildingRow = { id, name, category, cap, prevCap, total, maxedCount, byLevel };
     const list = rowsByCategory.get(category) ?? [];
     list.push(row);
     rowsByCategory.set(category, list);
+  };
+
+  for (const [id, levels] of byId) {
+    const entity = getEntity(idToName[String(id)] ?? "");
+    pushRow(id, levels, displayCategory(entity?.category ?? "other"));
+  }
+
+  // Helper Hut helpers (Builder's Apprentice, Lab Assistant, Alchemist, …) come
+  // in their own array and each is a singleton. Ones not in the rulebook are
+  // given a fallback name and treated as untracked (no cap -> shown complete),
+  // e.g. Prospector, which has a single level anyway.
+  for (const h of raw.helpers ?? []) {
+    if (typeof h.lvl !== "number") continue;
+    const known = String(h.data) in idToName;
+    const fallback = HELPER_FALLBACK_NAMES[h.data];
+    if (!known && !fallback) continue;
+    pushRow(h.data, new Map([[h.lvl, 1]]), "helper", known ? undefined : fallback);
   }
 
   const knownOrder = BASE_CATEGORY_ORDER as readonly string[];
@@ -218,9 +249,11 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
+  // Within a section, order by Supercell entity id, which tracks in-game
+  // unlock / menu order (Barbarian, Archer, Giant, …) far better than A-Z.
   const groups = categories.map((category) => ({
     category,
-    rows: rowsByCategory.get(category)!.sort((a, b) => a.name.localeCompare(b.name)),
+    rows: rowsByCategory.get(category)!.sort((a, b) => a.id - b.id),
   }));
 
   return {

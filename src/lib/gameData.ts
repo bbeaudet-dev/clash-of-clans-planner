@@ -195,12 +195,14 @@ export function buildVillageStats(player: ApiPlayer): VillageStats {
     byCategory.set(category, list);
   }
 
+  // Order items within a category by Supercell entity id, which follows the
+  // in-game unlock / menu order (Barbarian, Archer, Giant, …) far better than
+  // alphabetical.
+  const idOf = (name: string) => gameData.entities[name]?.id ?? Number.MAX_SAFE_INTEGER;
   const groups = CATEGORY_ORDER.filter((c) => byCategory.has(c)).map(
     (category) => ({
       category,
-      rows: byCategory
-        .get(category)!
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      rows: byCategory.get(category)!.sort((a, b) => idOf(a.name) - idOf(b.name)),
     })
   );
 
