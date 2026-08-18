@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useEffect, useRef, useState } from "react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { ApiPlayer, buildVillageStats } from "@/lib/gameData";
 import { parseVillageExport, VillageExport } from "@/lib/villageExport";
+import { AuthPanel } from "@/components/AuthPanel";
 import { Overview } from "@/components/Overview";
 import { TimingPanel } from "@/components/TimingPanel";
+import { UserMenu } from "@/components/UserMenu";
 
 const DEFAULT_TAG = "#Q8JJJ2UP";
 
@@ -17,11 +20,17 @@ function normalizeTag(tag: string): string {
 export default function Home() {
   const fetchPlayer = useAction(api.players.fetchPlayer);
   const importVillageData = useMutation(api.players.importVillageData);
+  const saveCurrentAccount = useMutation(api.accounts.saveCurrentAccount);
+  const { isAuthenticated } = useConvexAuth();
 
   const [tag, setTag] = useState(DEFAULT_TAG);
   const [player, setPlayer] = useState<ApiPlayer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<
+    Id<"cocAccounts"> | null | undefined
+  >(undefined);
+  const [savingAccount, setSavingAccount] = useState(false);
 
   const [village, setVillage] = useState<VillageExport | null>(null);
   const [builderCount, setBuilderCount] = useState(6);
@@ -36,6 +45,53 @@ export default function Home() {
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const accounts = useQuery(
+    api.accounts.listMyAccounts,
+    isAuthenticated ? {} : "skip"
+  );
+  const selectedAccount = accounts?.find(
+    (account) => account._id === selectedAccountId
+  );
+  const effectiveSelectedAccountId: Id<"cocAccounts"> | null = isAuthenticated
+    ? selectedAccountId === undefined
+      ? (accounts?.[0]?._id ?? null)
+      : (selectedAccount?._id ?? null)
+    : null;
+  const accountData = useQuery(
+    api.accounts.getAccountData,
+    effectiveSelectedAccountId ? { accountId: effectiveSelectedAccountId } : "skip"
+  );
+
+  useEffect(() => {
+    if (!accountData) return;
+
+    queueMicrotask(() => {
+      setTag(accountData.account.tag);
+      if (accountData.apiSnapshot?.raw) {
+        setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
+      } else {
+        setPlayer(null);
+      }
+
+      if (accountData.exportSnapshot?.raw) {
+        try {
+          const parsed = parseVillageExport(accountData.exportSnapshot.raw);
+          setVillage(parsed);
+          const asOf = parsed.timestamp
+            ? new Date(parsed.timestamp * 1000).toLocaleString()
+            : new Date(accountData.exportSnapshot.fetchedAt).toLocaleString();
+          setImportSuccess(`Saved export ${asOf}`);
+        } catch {
+          setVillage(null);
+          setImportSuccess(null);
+        }
+      } else {
+        setVillage(null);
+        setImportSuccess(null);
+      }
+    });
+  }, [accountData]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -43,6 +99,7 @@ export default function Home() {
     try {
       const result = (await fetchPlayer({ tag })) as ApiPlayer;
       setPlayer(result);
+      setTag(result.tag);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setPlayer(null);
@@ -66,6 +123,7 @@ export default function Home() {
         townHallLevel: parsed.townHallLevel,
         raw,
         exportTimestamp: parsed.timestamp ?? undefined,
+        cocAccountId: effectiveSelectedAccountId ?? undefined,
       });
     } catch {
       // Persistence is best-effort; the parsed view still renders.
@@ -98,6 +156,24 @@ export default function Home() {
     setImportOpen(true);
   }
 
+  async function handleSaveAccount() {
+    if (!player) return;
+    setSavingAccount(true);
+    setError(null);
+    try {
+      const accountId = await saveCurrentAccount({
+        tag: player.tag,
+        name: player.name,
+        townHallLevel: player.townHallLevel,
+      });
+      setSelectedAccountId(accountId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save account.");
+    } finally {
+      setSavingAccount(false);
+    }
+  }
+
   const stats = player ? buildVillageStats(player) : null;
   const hasData = stats || village;
 
@@ -114,10 +190,30 @@ export default function Home() {
         </header>
 
         <div className="mb-6 grid items-start gap-4 sm:grid-cols-3">
+          {isAuthenticated ? (
+            <UserMenu
+              accounts={accounts}
+              selectedAccountId={
+                selectedAccountId === undefined
+                  ? effectiveSelectedAccountId
+                  : selectedAccountId
+              }
+              onSelectAccount={setSelectedAccountId}
+              onSaveCurrent={() => void handleSaveAccount()}
+              saveDisabled={!player}
+              saving={savingAccount}
+            />
+          ) : (
+            <AuthPanel />
+          )}
+
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               value={tag}
-              onChange={(e) => setTag(e.target.value)}
+              onChange={(e) => {
+                setTag(e.target.value);
+                setSelectedAccountId(null);
+              }}
               placeholder="#PLAYERTAG"
               spellCheck={false}
               className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
@@ -131,7 +227,7 @@ export default function Home() {
             </button>
           </form>
 
-          <div className="sm:col-span-2">
+          <div>
             <button
               type="button"
               onClick={() => setImportOpen((o) => !o)}
