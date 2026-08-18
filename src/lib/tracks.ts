@@ -219,6 +219,22 @@ export function computeTracks(
         }
       }
     }
+
+    // The Town Hall reads as maxed at its current level (its level *is* the TH
+    // number), so the loop above skips it. Upgrading to the next Town Hall is
+    // still the final Builders step, so add that transition here as one level.
+    if (!skips.has("building:Town Hall")) {
+      const thStep = upgradeTime(
+        "Town Hall",
+        village.townHallLevel,
+        village.townHallLevel + 1
+      );
+      if (thStep > 0) {
+        recordBuilderChain(thStep);
+        addWork("builder", "village", thStep, 1);
+      }
+    }
+
     // Replace the current level's full upgrade time with the live in-progress
     // timer: the committed step is fixed (no discount), the rest stays future.
     for (const u of village.inProgress) {

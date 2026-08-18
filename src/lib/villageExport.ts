@@ -210,8 +210,17 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     capOverride?: number
   ) => {
     const name = nameOverride ?? idToName[String(id)] ?? `#${id}`;
-    const cap = capOverride ?? maxLevelAtTH(name, th);
-    const prevCap = capOverride ?? (th > 1 ? maxLevelAtTH(name, th - 1) : null);
+    // The Town Hall is the one building whose level *is* the Town Hall number,
+    // so while you're at TH N it's maxed at level N by definition. (Its data
+    // lists level N+1 as available at TH N — that's the next-TH transition, not
+    // a within-TH upgrade, and it's accounted for separately in the timing.)
+    const isTownHall = id === TOWN_HALL_ID;
+    const cap = isTownHall ? th : (capOverride ?? maxLevelAtTH(name, th));
+    const prevCap = isTownHall
+      ? th > 1
+        ? th - 1
+        : null
+      : capOverride ?? (th > 1 ? maxLevelAtTH(name, th - 1) : null);
 
     const byLevel: LevelCount[] = [...levels.entries()]
       .map(([level, count]) => ({ level, count }))
