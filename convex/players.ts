@@ -1,0 +1,75 @@
+import { v } from "convex/values";
+import { action, internalMutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+
+// RoyaleAPI proxy lets us call the official CoC API from a host without a
+// static IP. The token is whitelisted to the proxy IP (45.79.218.79), not ours.
+const PROXY_BASE = "https://cocproxy.royaleapi.dev/v1";
+
+/** Normalize any user-entered tag to the canonical "#ABC123" form. */
+export function normalizeTag(input: string): string {
+  const bare = input.trim().toUpperCase().replace(/^#/, "").replace(/O/g, "0");
+  return `#${bare}`;
+}
+
+export const fetchPlayer = action({
+  args: { tag: v.string() },
+  handler: async (ctx, { tag }) => {
+    const token = process.env.COC_API_TOKEN;
+    if (!token) {
+      throw new Error(
+        "COC_API_TOKEN is not set. Run: npx convex env set COC_API_TOKEN <token>"
+      );
+    }
+
+    const normalized = normalizeTag(tag);
+    const encoded = encodeURIComponent(normalized); // "#" -> "%23"
+
+    const res = await fetch(`${PROXY_BASE}/players/${encoded}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`CoC API error ${res.status}: ${body || res.statusText}`);
+    }
+
+    const player = await res.json();
+
+    await ctx.runMutation(internal.players.storeSnapshot, {
+      tag: normalized,
+      name: player.name ?? "Unknown",
+      townHallLevel: player.townHallLevel ?? 0,
+      raw: player,
+    });
+
+    return player;
+  },
+});
+
+export const storeSnapshot = internalMutation({
+  args: {
+    tag: v.string(),
+    name: v.string(),
+    townHallLevel: v.number(),
+    raw: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("baseSnapshots", { ...args, fetchedAt: Date.now() });
+  },
+});
+
+export const latestSnapshot = query({
+  args: { tag: v.string() },
+  handler: async (ctx, { tag }) => {
+    const normalized = normalizeTag(tag);
+    return await ctx.db
+      .query("baseSnapshots")
+      .withIndex("by_tag", (q) => q.eq("tag", normalized))
+      .order("desc")
+      .first();
+  },
+});
