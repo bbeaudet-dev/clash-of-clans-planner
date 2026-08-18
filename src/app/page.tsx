@@ -12,17 +12,59 @@ import { TimingPanel } from "@/components/TimingPanel";
 import { UserMenu } from "@/components/UserMenu";
 
 const DEFAULT_TAG = "#Q8JJJ2UP";
+const MAX_BUILDERS = 7;
 
 function normalizeTag(tag: string): string {
   return tag.trim().toUpperCase().replace(/^#/, "").replace(/O/g, "0");
+}
+
+function clampBuilderCount(builderCount: number): number {
+  return Math.min(MAX_BUILDERS, Math.max(1, Math.floor(builderCount)));
 }
 
 export default function Home() {
   const fetchPlayer = useAction(api.players.fetchPlayer);
   const importVillageData = useMutation(api.players.importVillageData);
   const saveCurrentAccount = useMutation(api.accounts.saveCurrentAccount);
-  const updateAccountSettings = useMutation(api.accounts.updateAccountSettings);
-  const { isAuthenticated } = useConvexAuth();
+  const updateAccountSettings = useMutation(
+    api.accounts.updateAccountSettings
+  ).withOptimisticUpdate((store, args) => {
+    const accounts = store.getQuery(api.accounts.listMyAccounts, {});
+    if (accounts) {
+      store.setQuery(
+        api.accounts.listMyAccounts,
+        {},
+        accounts.map((account) =>
+          account._id === args.accountId
+            ? {
+                ...account,
+                builderCount: args.builderCount,
+                goldPass: args.goldPass,
+              }
+            : account
+        )
+      );
+    }
+
+    const accountData = store.getQuery(api.accounts.getAccountData, {
+      accountId: args.accountId,
+    });
+    if (accountData) {
+      store.setQuery(
+        api.accounts.getAccountData,
+        { accountId: args.accountId },
+        {
+          ...accountData,
+          account: {
+            ...accountData.account,
+            builderCount: args.builderCount,
+            goldPass: args.goldPass,
+          },
+        }
+      );
+    }
+  });
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
   const [tag, setTag] = useState(DEFAULT_TAG);
   const [player, setPlayer] = useState<ApiPlayer | null>(null);
@@ -45,6 +87,7 @@ export default function Home() {
     raw: unknown;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const hydratedAccountIdRef = useRef<Id<"cocAccounts"> | null>(null);
 
   const accounts = useQuery(
     api.accounts.listMyAccounts,
@@ -62,13 +105,19 @@ export default function Home() {
     api.accounts.getAccountData,
     effectiveSelectedAccountId ? { accountId: effectiveSelectedAccountId } : "skip"
   );
+  const snapshotsLoading =
+    isAuthenticated &&
+    effectiveSelectedAccountId !== null &&
+    accountData === undefined;
 
   useEffect(() => {
     if (!accountData) return;
+    if (hydratedAccountIdRef.current === accountData.account._id) return;
 
+    hydratedAccountIdRef.current = accountData.account._id;
     queueMicrotask(() => {
       setTag(accountData.account.tag);
-      setBuilderCount(accountData.account.builderCount ?? 6);
+      setBuilderCount(clampBuilderCount(accountData.account.builderCount ?? 6));
       setGoldPass(accountData.account.goldPass ?? false);
       if (accountData.apiSnapshot?.raw) {
         setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
@@ -128,8 +177,12 @@ export default function Home() {
         exportTimestamp: parsed.timestamp ?? undefined,
         cocAccountId: effectiveSelectedAccountId ?? undefined,
       });
-    } catch {
-      // Persistence is best-effort; the parsed view still renders.
+    } catch (err) {
+      setImportError(
+        err instanceof Error
+          ? `Imported locally, but could not save it: ${err.message}`
+          : "Imported locally, but could not save it."
+      );
     }
   }
 
@@ -179,6 +232,22 @@ export default function Home() {
     }
   }
 
+  function handleSelectAccount(accountId: Id<"cocAccounts"> | null) {
+    hydratedAccountIdRef.current = null;
+    setSelectedAccountId(accountId);
+    if (!accountId) return;
+
+    const account = accounts?.find((a) => a._id === accountId);
+    if (!account) return;
+
+    setTag(account.tag);
+    setBuilderCount(clampBuilderCount(account.builderCount ?? 6));
+    setGoldPass(account.goldPass ?? false);
+    setPlayer(null);
+    setVillage(null);
+    setImportSuccess(null);
+  }
+
   function persistAccountSettings(nextBuilderCount: number, nextGoldPass: boolean) {
     if (!effectiveSelectedAccountId) return;
     void updateAccountSettings({
@@ -189,8 +258,9 @@ export default function Home() {
   }
 
   function handleBuilderCount(nextBuilderCount: number) {
-    setBuilderCount(nextBuilderCount);
-    persistAccountSettings(nextBuilderCount, goldPass);
+    const clamped = clampBuilderCount(nextBuilderCount);
+    setBuilderCount(clamped);
+    persistAccountSettings(clamped, goldPass);
   }
 
   function handleGoldPass(nextGoldPass: boolean) {
@@ -200,6 +270,10 @@ export default function Home() {
 
   const stats = player ? buildVillageStats(player) : null;
   const hasData = stats || village;
+  const overviewName = player?.name ?? selectedAccount?.name ?? null;
+  const overviewTag = player?.tag ?? selectedAccount?.tag ?? null;
+  const overviewTownHallLevel =
+    selectedAccount && !stats && !village ? selectedAccount.townHallLevel : null;
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-12 dark:bg-black">
@@ -214,7 +288,13 @@ export default function Home() {
         </header>
 
         <div className="mb-6 grid items-start gap-4 sm:grid-cols-3">
-          {isAuthenticated ? (
+          {authLoading ? (
+            <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="mt-2 h-3 w-44 rounded bg-zinc-100 dark:bg-zinc-900" />
+              <div className="mt-4 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-900" />
+            </section>
+          ) : isAuthenticated ? (
             <UserMenu
               accounts={accounts}
               selectedAccountId={
@@ -222,7 +302,7 @@ export default function Home() {
                   ? effectiveSelectedAccountId
                   : selectedAccountId
               }
-              onSelectAccount={setSelectedAccountId}
+              onSelectAccount={handleSelectAccount}
               onSaveCurrent={() => void handleSaveAccount()}
               saveDisabled={!player}
               saving={savingAccount}
@@ -349,11 +429,13 @@ export default function Home() {
           </div>
         )}
 
-        {hasData && (
+        {(hasData || snapshotsLoading) && (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <Overview
-              playerName={player?.name ?? null}
-              playerTag={player?.tag ?? null}
+              playerName={overviewName}
+              playerTag={overviewTag}
+              fallbackTownHallLevel={overviewTownHallLevel}
+              loading={snapshotsLoading}
               stats={stats}
               village={village}
             />
@@ -362,6 +444,7 @@ export default function Home() {
               onBuilderCount={handleBuilderCount}
               goldPass={goldPass}
               onGoldPass={handleGoldPass}
+              loading={snapshotsLoading}
               stats={stats}
               village={village}
             />

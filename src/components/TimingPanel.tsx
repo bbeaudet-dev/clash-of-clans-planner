@@ -2,6 +2,8 @@ import { VillageStats } from "@/lib/gameData";
 import { VillageExport } from "@/lib/villageExport";
 import { computeTracks, formatDuration, Track } from "@/lib/tracks";
 
+const MAX_BUILDERS = 7;
+
 function finishDate(seconds: number): string {
   const d = new Date(Date.now() + seconds * 1000);
   return d.toLocaleDateString(undefined, {
@@ -98,6 +100,7 @@ export function TimingPanel({
   onBuilderCount,
   goldPass,
   onGoldPass,
+  loading = false,
   stats,
   village,
 }: {
@@ -105,6 +108,7 @@ export function TimingPanel({
   onBuilderCount: (n: number) => void;
   goldPass: boolean;
   onGoldPass: (v: boolean) => void;
+  loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
 }) {
@@ -128,9 +132,13 @@ export function TimingPanel({
             <input
               type="number"
               min={1}
-              max={6}
+              max={MAX_BUILDERS}
               value={builderCount}
-              onChange={(e) => onBuilderCount(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) =>
+                onBuilderCount(
+                  Math.min(MAX_BUILDERS, Math.max(1, Number(e.target.value) || 1))
+                )
+              }
               className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             />
           </label>
@@ -146,7 +154,12 @@ export function TimingPanel({
           </label>
         </div>
 
-        {bottleneck ? (
+        {loading ? (
+          <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+            <div className="h-8 w-28 rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="mt-2 h-3 w-52 rounded bg-zinc-100 dark:bg-zinc-900" />
+          </div>
+        ) : bottleneck ? (
           <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
             <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {formatDuration(bottleneck.finishSeconds)}
@@ -164,17 +177,31 @@ export function TimingPanel({
           </p>
         )}
 
-        <ul className="mt-3 flex flex-col gap-2">
-          {tracks.map((t) => (
-            <TrackCard
-              key={t.key}
-              track={t}
-              bottleneck={bottleneck?.key === t.key}
-            />
-          ))}
-        </ul>
+        {loading ? (
+          <ul className="mt-3 flex flex-col gap-2" aria-label="Loading tracks">
+            {[0, 1, 2].map((i) => (
+              <li
+                key={i}
+                className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+              >
+                <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="mt-2 h-3 w-full rounded bg-zinc-100 dark:bg-zinc-900" />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="mt-3 flex flex-col gap-2">
+            {tracks.map((t) => (
+              <TrackCard
+                key={t.key}
+                track={t}
+                bottleneck={bottleneck?.key === t.key}
+              />
+            ))}
+          </ul>
+        )}
 
-        {stats && !village && (
+        {!loading && stats && !village && (
           <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">
             Import village data to include defenses, traps &amp; buildings in the
             Builder track.
@@ -182,7 +209,7 @@ export function TimingPanel({
         )}
       </div>
 
-      {village && village.inProgress.length > 0 && (
+      {!loading && village && village.inProgress.length > 0 && (
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
           <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
             Currently upgrading ({village.inProgress.length})

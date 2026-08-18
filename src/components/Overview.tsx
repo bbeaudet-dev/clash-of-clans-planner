@@ -238,19 +238,45 @@ function SectionCard({
   );
 }
 
+function LoadingSectionCard({ title }: { title: string }) {
+  return (
+    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {title}
+      </h3>
+      <div className="space-y-3" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div key={i}>
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-3 w-12 rounded bg-zinc-100 dark:bg-zinc-900" />
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-zinc-100 dark:bg-zinc-900" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Overview({
   playerName,
   playerTag,
+  fallbackTownHallLevel = null,
+  loading = false,
   stats,
   village,
 }: {
   playerName: string | null;
   playerTag: string | null;
+  fallbackTownHallLevel?: number | null;
+  loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
 }) {
   const summary = computeBaseSummary(stats, village);
-  const townHallLevel = stats?.townHallLevel ?? village?.townHallLevel ?? 0;
+  const townHallLevel =
+    stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
 
   const armyGroup = (c: Category) =>
     stats?.groups.find((g) => g.category === c) ?? null;
@@ -258,7 +284,7 @@ export function Overview({
     village?.groups.find((g) => g.category === c) ?? null;
 
   return (
-    <div className="w-full">
+    <div className="w-full" aria-busy={loading}>
       <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2">
         <div>
           <h2 className="text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
@@ -275,22 +301,38 @@ export function Overview({
             TH{townHallLevel}
           </span>
         )}
-        <span
-          className="text-sm font-semibold text-zinc-700 dark:text-zinc-300"
-          title="Progress through this Town Hall's new upgrades (previous TH cap → current TH cap)"
-        >
-          {summary.pctToMax}% to max
-        </span>
-        <span
-          className={`text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
-          title="Total upgrade time still owed below the previous Town Hall's caps"
-        >
-          {summary.rushedSeconds > 0
-            ? `${formatDuration(summary.rushedSeconds)} rushed`
-            : "0d 0h rushed"}
-        </span>
+        {loading && !stats && !village ? (
+          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            Loading account data...
+          </span>
+        ) : (
+          <>
+            <span
+              className="text-sm font-semibold text-zinc-700 dark:text-zinc-300"
+              title="Progress through this Town Hall's new upgrades (previous TH cap → current TH cap)"
+            >
+              {summary.pctToMax}% to max
+            </span>
+            <span
+              className={`text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
+              title="Total upgrade time still owed below the previous Town Hall's caps"
+            >
+              {summary.rushedSeconds > 0
+                ? `${formatDuration(summary.rushedSeconds)} rushed`
+                : "0d 0h rushed"}
+            </span>
+          </>
+        )}
       </div>
 
+      {loading && !stats && !village ? (
+        <div className="grid gap-6 sm:grid-cols-2">
+          <LoadingSectionCard title="Army" />
+          <LoadingSectionCard title="Base" />
+          <LoadingSectionCard title="Laboratory" />
+          <LoadingSectionCard title="Builders" />
+        </div>
+      ) : (
       <div className="grid gap-6 sm:grid-cols-2">
         {CATEGORY_ORDER.map((category) => {
           const unlockTH = CATEGORY_UNLOCK_TH[category];
@@ -334,6 +376,7 @@ export function Overview({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

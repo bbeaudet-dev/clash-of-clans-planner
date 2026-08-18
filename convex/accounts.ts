@@ -6,6 +6,11 @@ import { authComponent } from "./auth";
 import { normalizeTag } from "./players";
 
 type DbCtx = QueryCtx | MutationCtx;
+const MAX_BUILDERS = 7;
+
+function clampBuilderCount(builderCount: number): number {
+  return Math.min(MAX_BUILDERS, Math.max(1, Math.floor(builderCount)));
+}
 
 async function currentUserId(ctx: DbCtx) {
   const user = await authComponent.getAuthUser(ctx);
@@ -47,6 +52,8 @@ export const saveCurrentAccount = mutation({
     const userId = await currentUserId(ctx);
     const tag = normalizeTag(args.tag);
     const now = Date.now();
+    const builderCount =
+      args.builderCount === undefined ? undefined : clampBuilderCount(args.builderCount);
 
     const existing = await ctx.db
       .query("cocAccounts")
@@ -60,7 +67,7 @@ export const saveCurrentAccount = mutation({
         tag,
         name: args.name,
         townHallLevel: args.townHallLevel,
-        builderCount: args.builderCount ?? 6,
+        builderCount: builderCount ?? 6,
         goldPass: args.goldPass ?? false,
         order: now,
         createdAt: now,
@@ -71,7 +78,7 @@ export const saveCurrentAccount = mutation({
       await ctx.db.patch(existing._id, {
         name: args.name,
         townHallLevel: args.townHallLevel,
-        builderCount: args.builderCount ?? existing.builderCount ?? 6,
+        builderCount: builderCount ?? existing.builderCount ?? 6,
         goldPass: args.goldPass ?? existing.goldPass ?? false,
         updatedAt: now,
       });
@@ -106,7 +113,7 @@ export const updateAccountSettings = mutation({
     const userId = await currentUserId(ctx);
     await assertOwnsAccount(ctx, args.accountId, userId);
     await ctx.db.patch(args.accountId, {
-      builderCount: args.builderCount,
+      builderCount: clampBuilderCount(args.builderCount),
       goldPass: args.goldPass,
       updatedAt: Date.now(),
     });
