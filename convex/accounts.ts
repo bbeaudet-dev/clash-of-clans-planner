@@ -40,6 +40,8 @@ export const saveCurrentAccount = mutation({
     tag: v.string(),
     name: v.string(),
     townHallLevel: v.number(),
+    builderCount: v.optional(v.number()),
+    goldPass: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await currentUserId(ctx);
@@ -58,6 +60,8 @@ export const saveCurrentAccount = mutation({
         tag,
         name: args.name,
         townHallLevel: args.townHallLevel,
+        builderCount: args.builderCount ?? 6,
+        goldPass: args.goldPass ?? false,
         order: now,
         createdAt: now,
         updatedAt: now,
@@ -67,6 +71,8 @@ export const saveCurrentAccount = mutation({
       await ctx.db.patch(existing._id, {
         name: args.name,
         townHallLevel: args.townHallLevel,
+        builderCount: args.builderCount ?? existing.builderCount ?? 6,
+        goldPass: args.goldPass ?? existing.goldPass ?? false,
         updatedAt: now,
       });
     }
@@ -87,6 +93,23 @@ export const saveCurrentAccount = mutation({
     }
 
     return accountId;
+  },
+});
+
+export const updateAccountSettings = mutation({
+  args: {
+    accountId: v.id("cocAccounts"),
+    builderCount: v.number(),
+    goldPass: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await currentUserId(ctx);
+    await assertOwnsAccount(ctx, args.accountId, userId);
+    await ctx.db.patch(args.accountId, {
+      builderCount: args.builderCount,
+      goldPass: args.goldPass,
+      updatedAt: Date.now(),
+    });
   },
 });
 

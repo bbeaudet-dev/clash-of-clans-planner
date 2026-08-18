@@ -21,6 +21,7 @@ export default function Home() {
   const fetchPlayer = useAction(api.players.fetchPlayer);
   const importVillageData = useMutation(api.players.importVillageData);
   const saveCurrentAccount = useMutation(api.accounts.saveCurrentAccount);
+  const updateAccountSettings = useMutation(api.accounts.updateAccountSettings);
   const { isAuthenticated } = useConvexAuth();
 
   const [tag, setTag] = useState(DEFAULT_TAG);
@@ -67,6 +68,8 @@ export default function Home() {
 
     queueMicrotask(() => {
       setTag(accountData.account.tag);
+      setBuilderCount(accountData.account.builderCount ?? 6);
+      setGoldPass(accountData.account.goldPass ?? false);
       if (accountData.apiSnapshot?.raw) {
         setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
       } else {
@@ -165,6 +168,8 @@ export default function Home() {
         tag: player.tag,
         name: player.name,
         townHallLevel: player.townHallLevel,
+        builderCount,
+        goldPass,
       });
       setSelectedAccountId(accountId);
     } catch (err) {
@@ -172,6 +177,25 @@ export default function Home() {
     } finally {
       setSavingAccount(false);
     }
+  }
+
+  function persistAccountSettings(nextBuilderCount: number, nextGoldPass: boolean) {
+    if (!effectiveSelectedAccountId) return;
+    void updateAccountSettings({
+      accountId: effectiveSelectedAccountId,
+      builderCount: nextBuilderCount,
+      goldPass: nextGoldPass,
+    });
+  }
+
+  function handleBuilderCount(nextBuilderCount: number) {
+    setBuilderCount(nextBuilderCount);
+    persistAccountSettings(nextBuilderCount, goldPass);
+  }
+
+  function handleGoldPass(nextGoldPass: boolean) {
+    setGoldPass(nextGoldPass);
+    persistAccountSettings(builderCount, nextGoldPass);
   }
 
   const stats = player ? buildVillageStats(player) : null;
@@ -334,9 +358,9 @@ export default function Home() {
             />
             <TimingPanel
               builderCount={builderCount}
-              onBuilderCount={setBuilderCount}
+              onBuilderCount={handleBuilderCount}
               goldPass={goldPass}
-              onGoldPass={setGoldPass}
+              onGoldPass={handleGoldPass}
               stats={stats}
               village={village}
             />
