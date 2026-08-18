@@ -1,0 +1,144 @@
+import { VillageStats } from "@/lib/gameData";
+import { VillageExport } from "@/lib/villageExport";
+import { computeTracks, formatDuration, Track } from "@/lib/tracks";
+
+function finishDate(seconds: number): string {
+  const d = new Date(Date.now() + seconds * 1000);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+  });
+}
+
+function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean }) {
+  const done = track.levels === 0;
+  return (
+    <li
+      className={`rounded-lg border p-3 ${
+        bottleneck
+          ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40"
+          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+      }`}
+    >
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {track.label}
+          {bottleneck && (
+            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              bottleneck
+            </span>
+          )}
+        </span>
+        <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {done ? "maxed" : formatDuration(track.finishSeconds)}
+        </span>
+      </div>
+      {!done && (
+        <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span>
+            {track.levels} levels
+            {track.parallel > 1 ? ` · ÷ ${track.parallel} builders` : ""}
+          </span>
+          <span>done ~ {finishDate(track.finishSeconds)}</span>
+        </div>
+      )}
+    </li>
+  );
+}
+
+export function TimingPanel({
+  builderCount,
+  onBuilderCount,
+  stats,
+  village,
+}: {
+  builderCount: number;
+  onBuilderCount: (n: number) => void;
+  stats: VillageStats | null;
+  village: VillageExport | null;
+}) {
+  const tracks = computeTracks(stats, village, builderCount);
+  const active = tracks.filter((t) => t.levels > 0);
+  const bottleneck = active.reduce<Track | null>(
+    (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),
+    null
+  );
+
+  return (
+    <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:h-fit">
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          Time to max
+        </h2>
+
+        <label className="mt-3 flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+          Builders
+          <input
+            type="number"
+            min={1}
+            max={6}
+            value={builderCount}
+            onChange={(e) => onBuilderCount(Math.max(1, Number(e.target.value) || 1))}
+            className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+        </label>
+
+        {bottleneck ? (
+          <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+            <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+              {formatDuration(bottleneck.finishSeconds)}
+            </div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+              until fully maxed · limited by {bottleneck.label} · done ~{" "}
+              {finishDate(bottleneck.finishSeconds)}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-900 dark:text-zinc-400">
+            {stats || village
+              ? "Everything tracked is maxed. 🎉"
+              : "Look up a player and import village data to see time-to-max."}
+          </p>
+        )}
+
+        <ul className="mt-3 flex flex-col gap-2">
+          {tracks.map((t) => (
+            <TrackCard
+              key={t.key}
+              track={t}
+              bottleneck={bottleneck?.key === t.key}
+            />
+          ))}
+        </ul>
+
+        {stats && !village && (
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">
+            Import village data to include defenses, traps &amp; buildings in the
+            Builder track.
+          </p>
+        )}
+      </div>
+
+      {village && village.inProgress.length > 0 && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
+          <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
+            Currently upgrading ({village.inProgress.length})
+          </h3>
+          <ul className="flex flex-col gap-1 text-sm text-sky-900 dark:text-sky-200">
+            {village.inProgress.map((u, i) => (
+              <li key={`${u.name}-${i}`} className="flex justify-between gap-3">
+                <span className="truncate">
+                  {u.name} <span className="text-sky-500">L{u.level}</span>
+                </span>
+                <span className="shrink-0 font-mono text-xs">
+                  {formatDuration(u.secondsLeft)} left
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </aside>
+  );
+}

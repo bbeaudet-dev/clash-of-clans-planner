@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { ApiPlayer, buildVillageStats } from "@/lib/gameData";
 import { parseVillageExport, VillageExport } from "@/lib/villageExport";
 import { Overview } from "@/components/Overview";
+import { TimingPanel } from "@/components/TimingPanel";
 
 const DEFAULT_TAG = "#Q8JJJ2UP";
 
@@ -23,6 +24,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [village, setVillage] = useState<VillageExport | null>(null);
+  const [builderCount, setBuilderCount] = useState(6);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -100,7 +102,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-12 dark:bg-black">
-      <main className="w-full max-w-3xl">
+      <main className="w-full max-w-6xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
             Clash of Clans Planner
@@ -110,7 +112,7 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="mb-6 grid items-start gap-4 sm:grid-cols-2">
+        <div className="mb-6 grid max-w-3xl items-start gap-4 sm:grid-cols-2">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               value={tag}
@@ -227,11 +229,19 @@ export default function Home() {
         )}
 
         {hasData && (
-          <Overview
-            playerName={player?.name ?? null}
-            stats={stats}
-            village={village}
-          />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <Overview
+              playerName={player?.name ?? null}
+              stats={stats}
+              village={village}
+            />
+            <TimingPanel
+              builderCount={builderCount}
+              onBuilderCount={setBuilderCount}
+              stats={stats}
+              village={village}
+            />
+          </div>
         )}
       </main>
     </div>

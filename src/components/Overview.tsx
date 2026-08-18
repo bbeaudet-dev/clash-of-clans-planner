@@ -251,35 +251,6 @@ export function Overview({
           </SectionCard>
         ))}
       </div>
-
-      {village && village.inProgress.length > 0 && (
-        <div className="mt-6 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
-          <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
-            Currently upgrading ({village.inProgress.length})
-          </h3>
-          <ul className="grid gap-1 text-sm text-sky-900 dark:text-sky-200">
-            {village.inProgress.map((u, i) => (
-              <li key={`${u.name}-${i}`} className="flex justify-between gap-3">
-                <span>
-                  {u.name} <span className="text-sky-500">L{u.level}</span>
-                </span>
-                <span className="font-mono text-xs">
-                  {formatDuration(u.secondsLeft)} left
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
-}
-
-function formatDuration(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
