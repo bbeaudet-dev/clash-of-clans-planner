@@ -172,12 +172,6 @@ export function parseVillageExport(input: string | unknown): VillageExport {
 
   const entries = [...(raw.buildings ?? []), ...(raw.traps ?? [])];
 
-  // Inventory counts come from entries carrying `cnt`. Singletons like the Town
-  // Hall have no `cnt`, so we add those only when an ID has no counted entries.
-  const countedIds = new Set(
-    entries.filter((e) => typeof e.cnt === "number").map((e) => e.data)
-  );
-
   const byId = new Map<number, Map<number, number>>();
   const inProgress: InProgressUpgrade[] = [];
 
@@ -187,13 +181,14 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     byId.set(id, levels);
   };
 
+  // Every entry with a level is `cnt` instances (default 1). The export splits
+  // instances of the same building into separate entries when one is in a
+  // special state — upgrading (`timer`), or geared/weaponed (`gear_up`/`weapon`)
+  // — and those split entries omit `cnt`. Counting them as 1 (rather than
+  // dropping them) keeps the inventory total correct.
   for (const e of entries) {
     if (typeof e.lvl !== "number") continue; // skip module-only entries
-    if (typeof e.cnt === "number") {
-      add(e.data, e.lvl, e.cnt);
-    } else if (!countedIds.has(e.data)) {
-      add(e.data, e.lvl, 1); // singleton (e.g. Town Hall)
-    }
+    add(e.data, e.lvl, e.cnt ?? 1);
     if (typeof e.timer === "number" && e.timer > 0) {
       const name = idToName[String(e.data)] ?? `#${e.data}`;
       inProgress.push({
