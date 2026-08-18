@@ -47,10 +47,10 @@ const BUILDER_SUB_ORDER: { key: string; label: string }[] = [
   { key: "village", label: "Village" },
 ];
 const LAB_SUB_ORDER: { key: string; label: string }[] = [
-  { key: "el-troop", label: "Elixir Troops" },
-  { key: "de-troop", label: "Dark Elixir Troops" },
-  { key: "el-spell", label: "Elixir Spells" },
-  { key: "de-spell", label: "Dark Elixir Spells" },
+  { key: "el-troop", label: "Troops - Elixir" },
+  { key: "de-troop", label: "Troops - Dark Elixir" },
+  { key: "el-spell", label: "Spells - Elixir" },
+  { key: "de-spell", label: "Spells - Dark Elixir" },
   { key: "siege", label: "Siege Machines" },
 ];
 
@@ -124,14 +124,22 @@ export function computeTracks(
     }
   }
 
-  const orderedSubs = (track: TrackKey, order: { key: string; label: string }[]) =>
+  // Show every applicable sub-group (even maxed/0), but only ones whose data
+  // source is loaded: heroes need the army lookup, buildings need the export.
+  const orderedSubs = (
+    track: TrackKey,
+    order: { key: string; label: string }[],
+    available: (key: string) => boolean
+  ): TrackSub[] =>
     order
+      .filter(({ key }) => available(key))
       .map(({ key, label }) => {
         const s = subs[track].get(key);
-        return s ? { key, label, seconds: s.seconds, levels: s.levels } : null;
-      })
-      .filter((s): s is TrackSub => s !== null && s.levels > 0);
+        return { key, label, seconds: s?.seconds ?? 0, levels: s?.levels ?? 0 };
+      });
 
+  const hasArmy = stats !== null;
+  const hasVillage = village !== null;
   const builders = Math.max(1, builderCount);
   return [
     {
@@ -141,7 +149,9 @@ export function computeTracks(
       finishSeconds: Math.round(sec.builder / builders),
       levels: lv.builder,
       parallel: builders,
-      subs: orderedSubs("builder", BUILDER_SUB_ORDER),
+      subs: orderedSubs("builder", BUILDER_SUB_ORDER, (key) =>
+        key === "hero" ? hasArmy : hasVillage
+      ),
     },
     {
       key: "lab",
@@ -150,7 +160,7 @@ export function computeTracks(
       finishSeconds: sec.lab,
       levels: lv.lab,
       parallel: 1,
-      subs: orderedSubs("lab", LAB_SUB_ORDER),
+      subs: orderedSubs("lab", LAB_SUB_ORDER, () => hasArmy),
     },
     {
       key: "pets",

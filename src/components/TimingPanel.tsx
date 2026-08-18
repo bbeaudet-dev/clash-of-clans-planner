@@ -68,12 +68,23 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
               className="flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400"
             >
               <span>
-                {s.label}{" "}
-                <span className="text-zinc-400 dark:text-zinc-600">
-                  ({s.levels})
-                </span>
+                {s.label}
+                {s.levels > 0 && (
+                  <span className="text-zinc-400 dark:text-zinc-600">
+                    {" "}
+                    ({s.levels})
+                  </span>
+                )}
               </span>
-              <span className="font-mono">{formatDuration(s.seconds)}</span>
+              <span className="font-mono">
+                {s.levels === 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    maxed
+                  </span>
+                ) : (
+                  formatDuration(s.seconds)
+                )}
+              </span>
             </li>
           ))}
         </ul>
