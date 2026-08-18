@@ -1,46 +1,61 @@
 import { CATEGORY_LABELS, StatRow, VillageStats } from "@/lib/gameData";
 
 function StatRowItem({ row }: { row: StatRow }) {
-  const isMaxed = row.thMax !== null && row.remaining === 0;
+  const isThMaxed = row.thMax !== null && row.level >= row.thMax;
   const pct =
     row.thMax && row.thMax > 0
       ? Math.min(100, Math.round((row.level / row.thMax) * 100))
       : 0;
 
+  const showPrev =
+    row.prevThMax !== null && row.prevThMax > 0 && row.prevThMax < (row.thMax ?? 0);
+  const showNext =
+    row.nextThMax !== null && row.thMax !== null && row.nextThMax > row.thMax;
+
   return (
-    <li className="flex items-center gap-3 py-2">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {row.name}
-          </span>
-          <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">
+    <li className="py-2.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {row.name}
+        </span>
+        <span className="shrink-0 font-mono text-xs">
+          <span
+            className={
+              isThMaxed
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-zinc-900 dark:text-zinc-100"
+            }
+          >
             {row.level}
+          </span>
+          <span className="text-zinc-400">
             {row.thMax !== null ? ` / ${row.thMax}` : ""}
           </span>
-        </div>
-        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-          <div
-            className={`h-full rounded-full ${
-              isMaxed ? "bg-emerald-500" : "bg-amber-500"
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+        </span>
       </div>
-      <span
-        className={`w-16 shrink-0 text-right text-xs font-medium ${
-          isMaxed
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-amber-600 dark:text-amber-400"
-        }`}
-      >
-        {row.thMax === null
-          ? "—"
-          : isMaxed
-            ? "maxed"
-            : `+${row.remaining}`}
-      </span>
+
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+        <div
+          className={`h-full rounded-full ${
+            isThMaxed ? "bg-emerald-500" : "bg-amber-500"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="mt-1 flex gap-3 text-[11px] text-zinc-400">
+        {showPrev && <span>prev {row.prevThMax}</span>}
+        {row.thMax !== null && (
+          <span className="text-emerald-600 dark:text-emerald-400">
+            {isThMaxed ? "maxed" : `+${row.remaining} to max`}
+          </span>
+        )}
+        {showNext && (
+          <span className="text-sky-600 dark:text-sky-400">
+            next {row.nextThMax}
+          </span>
+        )}
+      </div>
     </li>
   );
 }
