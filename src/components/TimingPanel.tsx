@@ -96,15 +96,19 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
 export function TimingPanel({
   builderCount,
   onBuilderCount,
+  goldPass,
+  onGoldPass,
   stats,
   village,
 }: {
   builderCount: number;
   onBuilderCount: (n: number) => void;
+  goldPass: boolean;
+  onGoldPass: (v: boolean) => void;
   stats: VillageStats | null;
   village: VillageExport | null;
 }) {
-  const tracks = computeTracks(stats, village, builderCount);
+  const tracks = computeTracks(stats, village, builderCount, goldPass);
   const active = tracks.filter((t) => t.levels > 0);
   const bottleneck = active.reduce<Track | null>(
     (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),
@@ -118,17 +122,29 @@ export function TimingPanel({
           Time to max
         </h2>
 
-        <label className="mt-3 flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          Builders
-          <input
-            type="number"
-            min={1}
-            max={6}
-            value={builderCount}
-            onChange={(e) => onBuilderCount(Math.max(1, Number(e.target.value) || 1))}
-            className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          />
-        </label>
+        <div className="mt-3 flex items-center justify-between gap-4 text-sm text-zinc-700 dark:text-zinc-300">
+          <label className="flex items-center gap-2">
+            Builders
+            <input
+              type="number"
+              min={1}
+              max={6}
+              value={builderCount}
+              onChange={(e) => onBuilderCount(Math.max(1, Number(e.target.value) || 1))}
+              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            />
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-2">
+            Gold Pass
+            <input
+              type="checkbox"
+              checked={goldPass}
+              onChange={(e) => onGoldPass(e.target.checked)}
+              className="h-4 w-4 accent-amber-500"
+            />
+          </label>
+        </div>
 
         {bottleneck ? (
           <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">

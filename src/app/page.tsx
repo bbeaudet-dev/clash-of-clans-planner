@@ -25,6 +25,7 @@ export default function Home() {
 
   const [village, setVillage] = useState<VillageExport | null>(null);
   const [builderCount, setBuilderCount] = useState(6);
+  const [goldPass, setGoldPass] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -112,7 +113,7 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="mb-6 grid max-w-3xl items-start gap-4 sm:grid-cols-2">
+        <div className="mb-6 grid items-start gap-4 sm:grid-cols-3">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               value={tag}
@@ -130,7 +131,7 @@ export default function Home() {
             </button>
           </form>
 
-          <div>
+          <div className="sm:col-span-2">
             <button
               type="button"
               onClick={() => setImportOpen((o) => !o)}
@@ -238,6 +239,8 @@ export default function Home() {
             <TimingPanel
               builderCount={builderCount}
               onBuilderCount={setBuilderCount}
+              goldPass={goldPass}
+              onGoldPass={setGoldPass}
               stats={stats}
               village={village}
             />

@@ -61,47 +61,81 @@ function labSubKey(category: string, resource: string | null): string {
   return dark ? "de-spell" : "el-spell"; // spell
 }
 
+// Fold a raw building category (from the entity lookup) into the Builders
+// sub-group it belongs to, matching how the export groups them.
+function builderSubForCategory(category: string): string | null {
+  if (
+    category === "defense" ||
+    category === "trap" ||
+    category === "resource" ||
+    category === "army"
+  ) {
+    return category;
+  }
+  if (category === "helper") return null; // gold-only, no build time
+  return "village"; // town hall, walls, builder/helper huts, etc.
+}
+
+// Full Gold Pass gives up to 20% off both Builder Boost (Builders + Pets) and
+// Research Boost (Laboratory) time. We model the toggle as the full discount.
+const GOLD_PASS_FACTOR = 0.8;
+
 /** Compute remaining work per track (with sub-breakdowns) from army + buildings. */
 export function computeTracks(
   stats: VillageStats | null,
   village: VillageExport | null,
-  builderCount: number
+  builderCount: number,
+  goldPass = false
 ): Track[] {
-  const sec: Record<TrackKey, number> = { builder: 0, lab: 0, pets: 0 };
-  const lv: Record<TrackKey, number> = { builder: 0, lab: 0, pets: 0 };
-  // Per-track sub accumulation: subKey -> { seconds, levels }.
-  const subs: Record<TrackKey, Map<string, { seconds: number; levels: number }>> = {
+  // Each bucket splits work into `disc` (future upgrades, eligible for the Gold
+  // Pass discount) and `fixed` (live in-progress timers, already committed).
+  interface Bucket {
+    disc: number;
+    fixed: number;
+    levels: number;
+  }
+  const mk = (): Bucket => ({ disc: 0, fixed: 0, levels: 0 });
+  const track: Record<TrackKey, Bucket> = { builder: mk(), lab: mk(), pets: mk() };
+  const subs: Record<TrackKey, Map<string, Bucket>> = {
     builder: new Map(),
     lab: new Map(),
     pets: new Map(),
   };
-  const addSub = (
-    track: TrackKey,
-    key: string,
+  const subBucket = (t: TrackKey, key: string): Bucket => {
+    let b = subs[t].get(key);
+    if (!b) {
+      b = mk();
+      subs[t].set(key, b);
+    }
+    return b;
+  };
+  const addWork = (
+    t: TrackKey,
+    subKey: string | null,
     seconds: number,
     levels: number
   ) => {
-    const cur = subs[track].get(key) ?? { seconds: 0, levels: 0 };
-    cur.seconds += seconds;
-    cur.levels += levels;
-    subs[track].set(key, cur);
+    track[t].disc += seconds;
+    track[t].levels += levels;
+    if (subKey) {
+      const b = subBucket(t, subKey);
+      b.disc += seconds;
+      b.levels += levels;
+    }
   };
 
   if (stats) {
     for (const g of stats.groups) {
-      const track = ARMY_TRACK[g.category];
-      if (!track) continue;
+      const t = ARMY_TRACK[g.category];
+      if (!t) continue;
       for (const r of g.rows) {
         if (r.thMax === null || r.remaining <= 0) continue;
         const seconds = upgradeTime(r.name, r.level, r.thMax);
-        sec[track] += seconds;
-        lv[track] += r.remaining;
-        if (track === "builder") {
-          addSub("builder", "hero", seconds, r.remaining);
-        } else if (track === "lab") {
-          const resource = getEntity(r.name)?.resource ?? null;
-          addSub("lab", labSubKey(g.category, resource), seconds, r.remaining);
-        }
+        let subKey: string | null = null;
+        if (t === "builder") subKey = "hero";
+        else if (t === "lab")
+          subKey = labSubKey(g.category, getEntity(r.name)?.resource ?? null);
+        addWork(t, subKey, seconds, r.remaining);
       }
     }
   }
@@ -114,40 +148,66 @@ export function computeTracks(
         const cap = r.cap;
         for (const bl of r.byLevel) {
           if (bl.level >= cap) continue;
-          const seconds = upgradeTime(r.name, bl.level, cap) * bl.count;
-          const levels = (cap - bl.level) * bl.count;
-          sec.builder += seconds;
-          lv.builder += levels;
-          addSub("builder", g.category, seconds, levels);
+          addWork(
+            "builder",
+            g.category,
+            upgradeTime(r.name, bl.level, cap) * bl.count,
+            (cap - bl.level) * bl.count
+          );
         }
       }
     }
+    // Replace the current level's full upgrade time with the live in-progress
+    // timer: the committed step is fixed (no discount), the rest stays future.
+    for (const u of village.inProgress) {
+      const cat = getEntity(u.name)?.category;
+      const subKey = cat ? builderSubForCategory(cat) : null;
+      if (!subKey) continue;
+      const fullStep = upgradeTime(u.name, u.level, u.level + 1);
+      track.builder.disc -= fullStep;
+      track.builder.fixed += u.secondsLeft;
+      const b = subBucket("builder", subKey);
+      b.disc -= fullStep;
+      b.fixed += u.secondsLeft;
+    }
   }
+
+  const factor = goldPass ? GOLD_PASS_FACTOR : 1;
+  const secondsOf = (b: Bucket): number =>
+    Math.max(0, b.disc) * factor + b.fixed;
 
   // Show every applicable sub-group (even maxed/0), but only ones whose data
   // source is loaded: heroes need the army lookup, buildings need the export.
   const orderedSubs = (
-    track: TrackKey,
+    t: TrackKey,
     order: { key: string; label: string }[],
     available: (key: string) => boolean
   ): TrackSub[] =>
     order
       .filter(({ key }) => available(key))
       .map(({ key, label }) => {
-        const s = subs[track].get(key);
-        return { key, label, seconds: s?.seconds ?? 0, levels: s?.levels ?? 0 };
+        const b = subs[t].get(key);
+        return {
+          key,
+          label,
+          seconds: b ? secondsOf(b) : 0,
+          levels: b?.levels ?? 0,
+        };
       });
 
   const hasArmy = stats !== null;
   const hasVillage = village !== null;
   const builders = Math.max(1, builderCount);
+  const builderWork = secondsOf(track.builder);
+  const labWork = secondsOf(track.lab);
+  const petWork = secondsOf(track.pets);
   return [
     {
       key: "builder",
       label: "Builders",
-      workSeconds: sec.builder,
-      finishSeconds: Math.round(sec.builder / builders),
-      levels: lv.builder,
+      workSeconds: builderWork,
+      finishSeconds: Math.round(builderWork / builders),
+      levels: track.builder.levels,
       parallel: builders,
       subs: orderedSubs("builder", BUILDER_SUB_ORDER, (key) =>
         key === "hero" ? hasArmy : hasVillage
@@ -156,18 +216,18 @@ export function computeTracks(
     {
       key: "lab",
       label: "Laboratory",
-      workSeconds: sec.lab,
-      finishSeconds: sec.lab,
-      levels: lv.lab,
+      workSeconds: labWork,
+      finishSeconds: labWork,
+      levels: track.lab.levels,
       parallel: 1,
       subs: orderedSubs("lab", LAB_SUB_ORDER, () => hasArmy),
     },
     {
       key: "pets",
       label: "Pets",
-      workSeconds: sec.pets,
-      finishSeconds: sec.pets,
-      levels: lv.pets,
+      workSeconds: petWork,
+      finishSeconds: petWork,
+      levels: track.pets.levels,
       parallel: 1,
       subs: [],
     },
