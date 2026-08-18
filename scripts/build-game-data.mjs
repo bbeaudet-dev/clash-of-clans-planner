@@ -32,6 +32,8 @@ function categoryFor(sourceKey, entity) {
       return "trap";
     case "troops":
       return entity.production_building === "Workshop" ? "siege" : "troop";
+    case "helpers":
+      return "helper";
     case "buildings":
       // Normalize to lowercase so grouping is predictable: defense, resource,
       // army, wall, town hall, worker (+ builder-base "town hall2"/"worker2").
@@ -41,7 +43,15 @@ function categoryFor(sourceKey, entity) {
   }
 }
 
-const SOURCE_KEYS = ["heroes", "pets", "spells", "troops", "traps", "buildings"];
+const SOURCE_KEYS = [
+  "heroes",
+  "pets",
+  "spells",
+  "troops",
+  "helpers",
+  "traps",
+  "buildings",
+];
 
 const entities = {};
 const idToName = {};
