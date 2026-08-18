@@ -78,6 +78,10 @@ export function maxLevelAtTH(name: string, townHallLevel: number): number | null
   return max;
 }
 
+// In the source data each level row carries the time/cost to upgrade FROM that
+// level to the next one (so level N's `time` is the N -> N+1 upgrade). To go
+// from `fromLevel` to `toLevel` we therefore sum rows in [fromLevel, toLevel).
+
 /** Total upgrade time (seconds) to go from `fromLevel` to `toLevel`. */
 export function upgradeTime(
   name: string,
@@ -88,7 +92,7 @@ export function upgradeTime(
   if (!entity) return 0;
   let total = 0;
   for (const lv of entity.levels) {
-    if (lv.level > fromLevel && lv.level <= toLevel) total += lv.time;
+    if (lv.level >= fromLevel && lv.level < toLevel) total += lv.time;
   }
   return total;
 }
@@ -103,7 +107,7 @@ export function upgradeCost(
   if (!entity) return 0;
   let total = 0;
   for (const lv of entity.levels) {
-    if (lv.level > fromLevel && lv.level <= toLevel) total += lv.cost;
+    if (lv.level >= fromLevel && lv.level < toLevel) total += lv.cost;
   }
   return total;
 }
