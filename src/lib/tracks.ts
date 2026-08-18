@@ -1,5 +1,5 @@
 import { getEntity, upgradeTime, VillageStats } from "./gameData";
-import { VillageExport } from "./villageExport";
+import { buildingProgress, VillageExport } from "./villageExport";
 
 // The three parallel "tracks" a player progresses through. Time-to-max for the
 // whole base is the slowest (bottleneck) track.
@@ -235,39 +235,44 @@ export function computeTracks(
 }
 
 export interface BaseSummary {
-  /** Sum of current levels across all tracked army + buildings. */
-  currentLevels: number;
-  /** Sum of the current-TH caps for those same items. */
-  maxLevels: number;
-  /** Progress to a fully-maxed current TH, 0..100 (100 only when truly maxed). */
+  /** New-band levels completed this TH (previous TH cap -> current TH cap). */
+  bandDone: number;
+  /** Total new-band levels this TH unlocked, across everything. */
+  bandTotal: number;
+  /** Progress through this TH's new band, 0..100 (100 only when truly done). */
   pctToMax: number;
   /** Upgrade time still owed below the *previous* TH caps (how "rushed" the base is). */
   rushedSeconds: number;
 }
 
 /**
- * Overall base progress: a rush-agnostic "% to max" (total current levels vs the
- * current TH's caps) plus a "rushed" figure — the total upgrade time still owed
- * to reach the *previous* TH's caps on everything (heroes, troops, spells, pets,
- * defenses, traps, …). The Town Hall itself is treated as maxed at its current
- * level so its next-TH upgrade doesn't make 100% unreachable.
+ * Overall base progress, scoped to the *current* Town Hall's work:
+ *   - "% to max" measures only the new band of levels between the previous TH
+ *     cap and the current TH cap (so a fresh TH reads ~0% and a maxed one 100%).
+ *     Brand-new items (a hero/troop first unlocked this TH, a newly placed
+ *     building) count their whole 0 -> cap range, including being built.
+ *   - "rushed" is the upgrade time still owed *below* the previous TH cap — work
+ *     you skipped past by advancing early. The two bands never overlap.
+ * The Town Hall itself is excluded (its next-level upgrade is the transition to
+ * the next TH, tracked separately, not part of maxing the current one).
  */
 export function computeBaseSummary(
   stats: VillageStats | null,
   village: VillageExport | null
 ): BaseSummary {
-  let currentLevels = 0;
-  let maxLevels = 0;
+  let bandDone = 0;
+  let bandTotal = 0;
   let rushedSeconds = 0;
 
   if (stats) {
     for (const g of stats.groups) {
       for (const r of g.rows) {
         if (r.thMax === null) continue;
-        currentLevels += Math.min(r.level, r.thMax);
-        maxLevels += r.thMax;
-        if (r.prevThMax !== null && r.level < r.prevThMax) {
-          rushedSeconds += upgradeTime(r.name, r.level, r.prevThMax);
+        const prev = r.prevThMax ?? 0; // new-this-TH items start their band at 0
+        bandTotal += Math.max(0, r.thMax - prev);
+        bandDone += Math.min(Math.max(0, r.thMax - prev), Math.max(0, r.level - prev));
+        if (r.level < prev) {
+          rushedSeconds += upgradeTime(r.name, r.level, prev);
         }
       }
     }
@@ -277,17 +282,15 @@ export function computeBaseSummary(
     for (const g of village.groups) {
       for (const r of g.rows) {
         if (r.cap === null) continue; // untracked (B.O.B, Helper Hut, …)
-        const isTownHall = getEntity(r.name)?.category === "town hall";
-        // The TH's data cap is the *next* TH's level, so pin it to its current
-        // level for progress purposes (you can't be "more maxed" than your TH).
-        const cap = isTownHall
-          ? Math.max(...r.byLevel.map((l) => l.level))
-          : r.cap;
-        maxLevels += cap * r.total;
+        // The Town Hall's next level is the next-TH transition, not current work.
+        if (getEntity(r.name)?.category === "town hall") continue;
+        const progress = buildingProgress(r);
+        bandTotal += progress.bandTotal;
+        bandDone += progress.doneInBand;
+        const prev = r.prevCap ?? 0;
         for (const bl of r.byLevel) {
-          currentLevels += Math.min(bl.level, cap) * bl.count;
-          if (!isTownHall && r.prevCap !== null && bl.level < r.prevCap) {
-            rushedSeconds += upgradeTime(r.name, bl.level, r.prevCap) * bl.count;
+          if (bl.level < prev) {
+            rushedSeconds += upgradeTime(r.name, bl.level, prev) * bl.count;
           }
         }
       }
@@ -295,13 +298,13 @@ export function computeBaseSummary(
   }
 
   const pctToMax =
-    maxLevels === 0
+    bandTotal === 0
       ? 0
-      : currentLevels >= maxLevels
+      : bandDone >= bandTotal
         ? 100
-        : Math.min(99, Math.round((currentLevels / maxLevels) * 100));
+        : Math.min(99, Math.round((bandDone / bandTotal) * 100));
 
-  return { currentLevels, maxLevels, pctToMax, rushedSeconds };
+  return { bandDone, bandTotal, pctToMax, rushedSeconds };
 }
 
 /** Format a duration in seconds as a compact "Xd Yh" / "Yh Zm" / "Zm" string. */

@@ -258,7 +258,10 @@ export function Overview({
             TH{townHallLevel}
           </span>
         )}
-        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        <span
+          className="text-sm font-semibold text-zinc-700 dark:text-zinc-300"
+          title="Progress through this Town Hall's new upgrades (previous TH cap → current TH cap)"
+        >
           {summary.pctToMax}% to max
         </span>
         <span
