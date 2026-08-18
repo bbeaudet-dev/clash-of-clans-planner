@@ -58,6 +58,10 @@ function categoryFor(sourceKey, entity) {
       return entity.production_building === "Workshop" ? "siege" : "troop";
     case "helpers":
       return "helper";
+    case "equipment":
+      return "equipment";
+    case "guardians":
+      return "guardian";
     case "buildings":
       // Normalize to lowercase so grouping is predictable: defense, resource,
       // army, wall, town hall, worker (+ builder-base "town hall2"/"worker2").
@@ -73,6 +77,8 @@ const SOURCE_KEYS = [
   "spells",
   "troops",
   "helpers",
+  "equipment",
+  "guardians",
   "traps",
   "buildings",
 ];
@@ -95,6 +101,9 @@ for (const key of SOURCE_KEYS) {
       // Super troops (marked by a `super_troop` block in the source) are boosted
       // variants with no independent upgrade level, so we flag and exclude them.
       ...(e.super_troop ? { isSuper: true } : {}),
+      // Hero equipment carries its owning hero and rarity.
+      ...(e.hero ? { hero: e.hero } : {}),
+      ...(e.rarity ? { rarity: e.rarity } : {}),
       levels: normalizeLevels(e.levels ?? []),
     };
 
@@ -107,16 +116,32 @@ for (const key of SOURCE_KEYS) {
   }
 }
 
+// Town Hall unlocks: each Town Hall level's `unlocks` array lists the buildings
+// (and how many) newly granted at that TH. We keep it verbatim, keyed by TH
+// level, so the app can derive full building rosters + per-TH counts. This is a
+// reusable resource (rosters, "what's new this TH", un-built building tracking).
+const townHall = (raw.buildings ?? []).find((b) => b.name === "Town Hall");
+const townHallUnlocks = {};
+for (const lv of townHall?.levels ?? []) {
+  const unlocks = (lv.unlocks ?? []).map((u) => ({
+    id: u._id,
+    name: u.name,
+    quantity: u.quantity,
+  }));
+  if (unlocks.length > 0) townHallUnlocks[lv.level] = unlocks;
+}
+
 const out = {
   source: "coc.py static_data.json (github.com/mathsman5133/coc.py)",
   generatedAt: new Date().toISOString(),
   entities,
   idToName,
+  townHallUnlocks,
 };
 
 writeFileSync(OUT, JSON.stringify(out));
 console.log(
   `Wrote ${OUT}: ${Object.keys(entities).length} entities, ${
     Object.keys(idToName).length
-  } id mappings.`
+  } id mappings, ${Object.keys(townHallUnlocks).length} TH unlock levels.`
 );

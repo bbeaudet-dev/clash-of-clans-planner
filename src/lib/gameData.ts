@@ -5,10 +5,18 @@ import rawGameData from "@/data/gameData.generated.json";
 //   - Builder track: heroes (+ buildings/defenses/traps, added later)
 //   - Laboratory track: troops, spells, siege machines
 //   - Pets track: pets
-export type Category = "hero" | "pet" | "troop" | "siege" | "spell" | "guardian";
+export type Category =
+  | "hero"
+  | "equipment"
+  | "pet"
+  | "troop"
+  | "siege"
+  | "spell"
+  | "guardian";
 
 export const CATEGORY_ORDER: Category[] = [
   "hero",
+  "equipment",
   "pet",
   "spell",
   "troop",
@@ -18,6 +26,7 @@ export const CATEGORY_ORDER: Category[] = [
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   hero: "Heroes",
+  equipment: "Hero Equipment",
   pet: "Pets",
   spell: "Spells",
   troop: "Troops",
@@ -26,9 +35,10 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 };
 
 // Town Hall level at which each army category first becomes available. Used to
-// show whole sections as "locked" (rather than empty) below that TH.
+// decide when to start showing a section (categories appear as they unlock).
 export const CATEGORY_UNLOCK_TH: Record<Category, number> = {
   hero: 7, // Barbarian King
+  equipment: 8, // Blacksmith
   spell: 5, // Spell Factory
   troop: 1, // Barracks
   siege: 12, // Workshop
@@ -50,7 +60,18 @@ interface GameEntity {
   village: string;
   resource: string | null;
   isSuper?: boolean;
+  /** Owning hero (hero equipment only). */
+  hero?: string;
+  /** Rarity, e.g. "Common" | "Epic" (hero equipment only). */
+  rarity?: string;
   levels: GameLevel[];
+}
+
+/** One building (with its quantity) newly granted at a given Town Hall level. */
+export interface TownHallUnlock {
+  id: number;
+  name: string;
+  quantity: number;
 }
 
 interface GameData {
@@ -58,6 +79,8 @@ interface GameData {
   generatedAt: string;
   entities: Record<string, GameEntity>;
   idToName: Record<string, string>;
+  /** Buildings newly unlocked at each Town Hall level, keyed by TH level. */
+  townHallUnlocks: Record<string, TownHallUnlock[]>;
 }
 
 const gameData = rawGameData as unknown as GameData;
@@ -89,6 +112,43 @@ export function maxLevelAtTH(name: string, townHallLevel: number): number | null
     }
   }
   return max;
+}
+
+/**
+ * Buildings newly unlocked at exactly `townHallLevel` (verbatim from the game's
+ * Town Hall `unlocks` data): each entry is a building name/id and how many new
+ * copies that TH grants.
+ */
+export function newBuildingsAtTH(townHallLevel: number): TownHallUnlock[] {
+  return gameData.townHallUnlocks[String(townHallLevel)] ?? [];
+}
+
+/**
+ * Total number of copies of a building available at a given Town Hall (summing
+ * every unlock up to and including `townHallLevel`). 0 if never unlocked yet.
+ */
+export function buildingCountAtTH(name: string, townHallLevel: number): number {
+  let count = 0;
+  for (let th = 1; th <= townHallLevel; th++) {
+    for (const u of newBuildingsAtTH(th)) {
+      if (u.name === name) count += u.quantity;
+    }
+  }
+  return count;
+}
+
+/**
+ * The full building roster available at a Town Hall: building name -> total
+ * count. Reusable for rosters, un-built tracking, and "what's new this TH".
+ */
+export function buildingRosterAtTH(townHallLevel: number): Map<string, number> {
+  const roster = new Map<string, number>();
+  for (let th = 1; th <= townHallLevel; th++) {
+    for (const u of newBuildingsAtTH(th)) {
+      roster.set(u.name, (roster.get(u.name) ?? 0) + u.quantity);
+    }
+  }
+  return roster;
 }
 
 // In the source data each level row carries the time/cost to upgrade FROM that
@@ -168,8 +228,9 @@ export interface VillageStats {
 
 /**
  * Join a player's items with their Town Hall caps and group by category.
- * Home village only; unknown names (super troops, hero equipment) and builder
- * base items are skipped.
+ * Home village only; unknown names (super troops) and builder-base items are
+ * skipped. Hero equipment is included but keyed off the API's own max level
+ * (it's ore-upgraded and instant, not Town-Hall-capped like the rest).
  */
 export function buildVillageStats(player: ApiPlayer): VillageStats {
   const th = player.townHallLevel;
@@ -177,6 +238,7 @@ export function buildVillageStats(player: ApiPlayer): VillageStats {
     ...(player.heroes ?? []),
     ...(player.spells ?? []),
     ...(player.troops ?? []),
+    ...(player.heroEquipment ?? []),
   ];
 
   const byCategory = new Map<Category, StatRow[]>();
@@ -191,9 +253,19 @@ export function buildVillageStats(player: ApiPlayer): VillageStats {
     const category = toCategory(item.name);
     if (!category) continue;
 
-    const thMax = maxLevelAtTH(item.name, th);
-    const prevThMax = th > 1 ? maxLevelAtTH(item.name, th - 1) : null;
-    const nextThMax = maxLevelAtTH(item.name, th + 1);
+    let thMax: number | null;
+    let prevThMax: number | null;
+    let nextThMax: number | null;
+    if (category === "equipment") {
+      // No Town Hall band for equipment: treat the API max as its cap.
+      thMax = item.maxLevel;
+      prevThMax = null;
+      nextThMax = null;
+    } else {
+      thMax = maxLevelAtTH(item.name, th);
+      prevThMax = th > 1 ? maxLevelAtTH(item.name, th - 1) : null;
+      nextThMax = maxLevelAtTH(item.name, th + 1);
+    }
     const remaining = thMax !== null ? Math.max(0, thMax - item.level) : 0;
 
     const row: StatRow = {

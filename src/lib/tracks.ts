@@ -266,6 +266,7 @@ export function computeBaseSummary(
 
   if (stats) {
     for (const g of stats.groups) {
+      if (g.category === "equipment") continue; // ore-upgraded, not in the TH band
       for (const r of g.rows) {
         if (r.thMax === null) continue;
         const prev = r.prevThMax ?? 0; // new-this-TH items start their band at 0
