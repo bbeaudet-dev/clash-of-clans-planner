@@ -122,26 +122,43 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
     );
   }
 
-  const { catchUp, remaining } = buildingProgress(row);
+  const toBuild = row.toBuild ?? 0;
+  // Un-built copies are counted as level-0 instances built from scratch, so they
+  // drag the bar and add their full cap to the remaining work.
+  const effectiveTotal = row.total + toBuild;
+  const { catchUp } = buildingProgress(row);
+  const remaining = buildingProgress(row).remaining + row.cap * toBuild;
   const isMaxed = remaining === 0;
   const sumLevels = row.byLevel.reduce((s, l) => s + l.level * l.count, 0);
-  const sumCap = row.cap * row.total;
+  const sumCap = row.cap * effectiveTotal;
   const pct = sumCap > 0 ? Math.min(100, (sumLevels / sumCap) * 100) : 0;
+  const notBuilt = row.total === 0; // nothing placed yet
   // A single number that reads like a troop level: exact when all instances
   // share a level, otherwise the average across instances.
-  const avg = sumLevels / row.total;
-  const avgStr = row.byLevel.length === 1 ? String(avg) : avg.toFixed(1);
+  const avg = effectiveTotal > 0 ? sumLevels / effectiveTotal : 0;
+  const avgStr = Number.isInteger(avg) ? String(avg) : avg.toFixed(1);
 
   return (
     <li className="py-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <span
+          className={`truncate text-sm font-medium ${
+            notBuilt
+              ? "text-zinc-400 dark:text-zinc-600"
+              : "text-zinc-900 dark:text-zinc-100"
+          }`}
+        >
           {row.name}
         </span>
         <span className="flex shrink-0 items-center gap-2 font-mono text-xs">
           {catchUp > 0 && (
             <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
               {catchUp} catch-up
+            </span>
+          )}
+          {toBuild > 0 && (
+            <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+              {toBuild} to build
             </span>
           )}
           <span>
@@ -166,7 +183,7 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
               +{remaining} to max
             </span>
           )}
-          {multiple && <span>{breakdown}</span>}
+          {multiple && breakdown && <span>{breakdown}</span>}
         </div>
       )}
     </li>

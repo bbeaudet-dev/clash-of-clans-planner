@@ -1,4 +1,9 @@
-import { getEntity, idToName, maxLevelAtTH } from "./gameData";
+import {
+  buildingRosterAtTH,
+  getEntity,
+  idToName,
+  maxLevelAtTH,
+} from "./gameData";
 
 // Parses the in-game "Download village data" JSON export. Focus: the home
 // village base (buildings + traps), which the official API does NOT expose.
@@ -40,6 +45,8 @@ export interface BuildingRow {
   maxedCount: number;
   /** Instance counts by level, highest level first. */
   byLevel: LevelCount[];
+  /** Copies this TH grants that haven't been placed yet (built from scratch). */
+  toBuild?: number;
 }
 
 export interface BuildingProgress {
@@ -247,6 +254,41 @@ export function parseVillageExport(input: string | unknown): VillageExport {
       known ? undefined : fallback,
       known ? undefined : h.lvl
     );
+  }
+
+  // Reconcile against the full building roster this TH grants: any copies you
+  // haven't placed yet (a brand-new type, or an extra copy of one you have)
+  // show up as grayed "to build" work. Traps aren't in the TH unlock data, and
+  // walls/huts are handled elsewhere, so we only reconcile the leveled building
+  // categories. (This is a name/category routing detail, not a data mismatch.)
+  const RECONCILED = new Set(["defense", "resource", "army"]);
+  for (const [name, expected] of buildingRosterAtTH(th)) {
+    const entity = getEntity(name);
+    if (!entity || !RECONCILED.has(entity.category)) continue;
+    const category = displayCategory(entity.category);
+    const rows = rowsByCategory.get(category) ?? [];
+    const existing = rows.find((r) => r.name === name);
+    const present = existing?.total ?? 0;
+    const unbuilt = Math.max(0, expected - present);
+    if (unbuilt === 0) continue;
+    if (existing) {
+      existing.toBuild = unbuilt;
+    } else {
+      const cap = maxLevelAtTH(name, th);
+      const prevCap = th > 1 ? maxLevelAtTH(name, th - 1) : null;
+      rows.push({
+        id: entity.id,
+        name,
+        category,
+        cap,
+        prevCap,
+        total: 0,
+        maxedCount: 0,
+        byLevel: [],
+        toBuild: unbuilt,
+      });
+      rowsByCategory.set(category, rows);
+    }
   }
 
   const knownOrder = BASE_CATEGORY_ORDER as readonly string[];
