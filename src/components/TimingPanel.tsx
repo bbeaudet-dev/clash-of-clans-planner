@@ -13,16 +13,13 @@ function finishDate(seconds: number): string {
 
 function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean }) {
   const done = track.levels === 0;
-  return (
-    <li
-      className={`rounded-lg border p-3 ${
-        bottleneck
-          ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40"
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-      }`}
-    >
+  const expandable = !done && track.subs.length > 0;
+
+  const header = (
+    <>
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {expandable && <span className="mr-1 text-zinc-400 transition-transform group-open:rotate-90 inline-block">›</span>}
           {track.label}
           {bottleneck && (
             <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
@@ -38,11 +35,49 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
         <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
           <span>
             {track.levels} levels
-            {track.parallel > 1 ? ` · ÷ ${track.parallel} builders` : ""}
+            {track.parallel > 1
+              ? ` · ${formatDuration(track.workSeconds)} work ÷ ${track.parallel}`
+              : ""}
           </span>
           <span>done ~ {finishDate(track.finishSeconds)}</span>
         </div>
       )}
+    </>
+  );
+
+  const cardClass = `rounded-lg border p-3 ${
+    bottleneck
+      ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40"
+      : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+  }`;
+
+  if (!expandable) {
+    return (
+      <li className={cardClass}>{header}</li>
+    );
+  }
+
+  return (
+    <li>
+      <details className={`group ${cardClass}`}>
+        <summary className="cursor-pointer list-none">{header}</summary>
+        <ul className="mt-2 flex flex-col gap-1 border-t border-zinc-200/70 pt-2 dark:border-zinc-800">
+          {track.subs.map((s) => (
+            <li
+              key={s.key}
+              className="flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400"
+            >
+              <span>
+                {s.label}{" "}
+                <span className="text-zinc-400 dark:text-zinc-600">
+                  ({s.levels})
+                </span>
+              </span>
+              <span className="font-mono">{formatDuration(s.seconds)}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
     </li>
   );
 }

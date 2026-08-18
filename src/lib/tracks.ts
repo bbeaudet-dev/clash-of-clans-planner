@@ -1,9 +1,17 @@
-import { upgradeTime, VillageStats } from "./gameData";
+import { getEntity, upgradeTime, VillageStats } from "./gameData";
 import { VillageExport } from "./villageExport";
 
 // The three parallel "tracks" a player progresses through. Time-to-max for the
 // whole base is the slowest (bottleneck) track.
 export type TrackKey = "builder" | "lab" | "pets";
+
+/** A sub-grouping of a track's work (e.g. Defenses within the Builders track). */
+export interface TrackSub {
+  key: string;
+  label: string;
+  seconds: number;
+  levels: number;
+}
 
 export interface Track {
   key: TrackKey;
@@ -14,12 +22,13 @@ export interface Track {
   finishSeconds: number;
   /** Remaining upgrade levels on this track. */
   levels: number;
-  /** How many workers share the track (builders for Builder, else 1). */
+  /** How many workers share the track (builders for Builders, else 1). */
   parallel: number;
+  subs: TrackSub[];
 }
 
 // Army categories (from the API) map onto tracks. Buildings/traps (from the
-// export) are all Builder work except helpers, which cost gold but no time.
+// export) are all Builders work except helpers, which cost gold but no time.
 const ARMY_TRACK: Record<string, TrackKey> = {
   hero: "builder",
   troop: "lab",
@@ -28,7 +37,31 @@ const ARMY_TRACK: Record<string, TrackKey> = {
   pet: "pets",
 };
 
-/** Compute remaining work per track from army (API) + buildings (export). */
+// Ordered sub-group definitions per track.
+const BUILDER_SUB_ORDER: { key: string; label: string }[] = [
+  { key: "hero", label: "Heroes" },
+  { key: "defense", label: "Defenses" },
+  { key: "trap", label: "Traps" },
+  { key: "resource", label: "Resources" },
+  { key: "army", label: "Army Buildings" },
+  { key: "village", label: "Village" },
+];
+const LAB_SUB_ORDER: { key: string; label: string }[] = [
+  { key: "el-troop", label: "Elixir Troops" },
+  { key: "de-troop", label: "Dark Elixir Troops" },
+  { key: "el-spell", label: "Elixir Spells" },
+  { key: "de-spell", label: "Dark Elixir Spells" },
+  { key: "siege", label: "Siege Machines" },
+];
+
+function labSubKey(category: string, resource: string | null): string {
+  if (category === "siege") return "siege";
+  const dark = resource === "Dark Elixir";
+  if (category === "troop") return dark ? "de-troop" : "el-troop";
+  return dark ? "de-spell" : "el-spell"; // spell
+}
+
+/** Compute remaining work per track (with sub-breakdowns) from army + buildings. */
 export function computeTracks(
   stats: VillageStats | null,
   village: VillageExport | null,
@@ -36,6 +69,23 @@ export function computeTracks(
 ): Track[] {
   const sec: Record<TrackKey, number> = { builder: 0, lab: 0, pets: 0 };
   const lv: Record<TrackKey, number> = { builder: 0, lab: 0, pets: 0 };
+  // Per-track sub accumulation: subKey -> { seconds, levels }.
+  const subs: Record<TrackKey, Map<string, { seconds: number; levels: number }>> = {
+    builder: new Map(),
+    lab: new Map(),
+    pets: new Map(),
+  };
+  const addSub = (
+    track: TrackKey,
+    key: string,
+    seconds: number,
+    levels: number
+  ) => {
+    const cur = subs[track].get(key) ?? { seconds: 0, levels: 0 };
+    cur.seconds += seconds;
+    cur.levels += levels;
+    subs[track].set(key, cur);
+  };
 
   if (stats) {
     for (const g of stats.groups) {
@@ -43,8 +93,15 @@ export function computeTracks(
       if (!track) continue;
       for (const r of g.rows) {
         if (r.thMax === null || r.remaining <= 0) continue;
-        sec[track] += upgradeTime(r.name, r.level, r.thMax);
+        const seconds = upgradeTime(r.name, r.level, r.thMax);
+        sec[track] += seconds;
         lv[track] += r.remaining;
+        if (track === "builder") {
+          addSub("builder", "hero", seconds, r.remaining);
+        } else if (track === "lab") {
+          const resource = getEntity(r.name)?.resource ?? null;
+          addSub("lab", labSubKey(g.category, resource), seconds, r.remaining);
+        }
       }
     }
   }
@@ -57,22 +114,34 @@ export function computeTracks(
         const cap = r.cap;
         for (const bl of r.byLevel) {
           if (bl.level >= cap) continue;
-          sec.builder += upgradeTime(r.name, bl.level, cap) * bl.count;
-          lv.builder += (cap - bl.level) * bl.count;
+          const seconds = upgradeTime(r.name, bl.level, cap) * bl.count;
+          const levels = (cap - bl.level) * bl.count;
+          sec.builder += seconds;
+          lv.builder += levels;
+          addSub("builder", g.category, seconds, levels);
         }
       }
     }
   }
 
+  const orderedSubs = (track: TrackKey, order: { key: string; label: string }[]) =>
+    order
+      .map(({ key, label }) => {
+        const s = subs[track].get(key);
+        return s ? { key, label, seconds: s.seconds, levels: s.levels } : null;
+      })
+      .filter((s): s is TrackSub => s !== null && s.levels > 0);
+
   const builders = Math.max(1, builderCount);
   return [
     {
       key: "builder",
-      label: "Builder",
+      label: "Builders",
       workSeconds: sec.builder,
       finishSeconds: Math.round(sec.builder / builders),
       levels: lv.builder,
       parallel: builders,
+      subs: orderedSubs("builder", BUILDER_SUB_ORDER),
     },
     {
       key: "lab",
@@ -81,6 +150,7 @@ export function computeTracks(
       finishSeconds: sec.lab,
       levels: lv.lab,
       parallel: 1,
+      subs: orderedSubs("lab", LAB_SUB_ORDER),
     },
     {
       key: "pets",
@@ -89,6 +159,7 @@ export function computeTracks(
       finishSeconds: sec.pets,
       levels: lv.pets,
       parallel: 1,
+      subs: [],
     },
   ];
 }
