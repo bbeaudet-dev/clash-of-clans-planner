@@ -15,7 +15,9 @@ See [`docs/IDEAS.md`](docs/IDEAS.md) for the full roadmap and
 - Next.js (App Router) + React + TypeScript
 - Convex (backend: CoC API proxying + snapshot storage)
 - Tailwind CSS
-- [`coc-info`](https://github.com/rapha1232/coc-info) for Town Hall max levels
+- Game "rulebook" data (max levels, upgrade times/costs, entity IDs) vendored
+  from [`coc.py`](https://github.com/mathsman5133/coc.py)'s game-derived static
+  data and slimmed via `npm run build:data`. See [`data/README.md`](data/README.md).
 
 ## Setup
 

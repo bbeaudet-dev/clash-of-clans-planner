@@ -38,6 +38,8 @@ Laboratory track. Both cut time and cost, up to 20% (10% ~Day 1, 15% ~Day 4,
 - [done] Convex action `fetchPlayer` via RoyaleAPI proxy; store snapshots.
 - [done] `coc-info` TH-cap lookups (`getMaxLevel`).
 - [done] Village stats view: heroes/pets/spells/troops/siege, current vs TH cap.
+- [done] Progress bar with ticks for previous / current / next TH max levels
+  (all from coc-info at th-1 / th / th+1).
 
 ## Phase 2 — Track time-to-max (core engine)
 
@@ -87,10 +89,63 @@ Laboratory track. Both cut time and cost, up to 20% (10% ~Day 1, 15% ~Day 4,
 - [idea] Builder Base tracker, parallel to the main village.
 - [idea] Rush-to-BH9 helper to unlock the 6th builder (O.T.T.O).
 
+## Buildings / defenses / traps data
+
+The official player API omits individual building/defense/trap levels. BUT the
+in-game **Settings -> Download village data (JSON)** export DOES include them.
+Sample saved at `docs/village-data.JSON`. It contains, keyed by numeric data
+IDs:
+
+- `buildings` / `buildings2` (home / builder base): id, `lvl`, `cnt` (count of
+  that type at that level), plus `weapon`, `gear_up`, and `timer` (seconds
+  remaining) for in-progress upgrades.
+- `traps`/`traps2`, `units`/`units2` (troops), `siege_machines`, `heroes`/
+  `heroes2`, `spells`, `pets` (empty pre-TH14), `equipment`, `decos`,
+  `obstacles`, `boosts` (e.g. clock tower cooldown).
+- In-progress upgrades carry a live `timer` -> we can read exactly what's cooking
+  and how long is left, right now.
+
+Implications:
+
+- This **removes the need for manual entry** of buildings. Preferred base-state
+  source = the JSON export (import/paste), optionally supplemented by the live
+  API for fast-changing army levels.
+- Downside: keyed by Supercell numeric IDs (need an ID -> name map) and it's a
+  point-in-time snapshot (re-export to refresh). Buildings change slowly so a
+  periodic re-export is fine; we can diff snapshots over time.
+
+- [done] ID -> name map (`idToName`) to decode the export.
+- [next] Import flow: paste/upload the export JSON.
+- [later] Diff consecutive snapshots to show real progress/velocity.
+- [idea] Nice quick-entry UI as a fallback for people who won't export.
+
+### Freshness / gentle re-export prompts
+
+The export has a `timestamp` and each in-progress upgrade has a `timer` (seconds
+remaining at snapshot), so finish time = `timestamp + timer`. We can compute
+when each in-progress upgrade completes and nudge the user to re-export.
+
+- [idea] Non-intrusive nudge: when some threshold (e.g. all, or N) of the
+  snapshot's in-progress upgrades should be finished, show a gentle "your data
+  may be stale - re-export when you can" prompt. No hard obstacle up front.
+- [idea] Optional notification/ping when an upgrade should have finished (opt-in,
+  likely needs login + push; more intrusive, lower priority).
+- [idea] Show a "data as of <time> (X of Y upgrades likely done since)" banner.
+
 ## Data / accuracy backlog
 
-- [idea] Migrate from `coc-info` to the official game-file extractor
-  (`Xayz-X/ClashOfClans`) for authoritative, auto-updating times/costs/caps and
-  newest Town Halls.
+- [KNOWN ISSUE] `coc-info` (v1.1.0, only version) is a STATIC community snapshot,
+  not Supercell data, and is already outdated: e.g. TH14 caps return BK/AQ 80 and
+  GW 55, but current values are BK/AQ 85 and GW 60 (confirmed via clash.ninja and
+  ClashGuidesWithDusk). It also has NO Supercell numeric IDs, so it can't decode
+  the village-data export. Good for a quick MVP, not for accurate planning.
+- [done] Adopted a published game-derived dataset (coc.py static data) as the
+  authoritative rulebook: accurate caps + upgrade times + costs + numeric
+  ID -> name map. Vendored to `data/`, slimmed to `src/data/gameData.generated.json`
+  via `npm run build:data`. Replaced coc-info (removed). Verified TH14 caps
+  (BK/AQ 85, GW 60) now correct.
+- [idea] Icons/assets: usable under Supercell's Fan Content Policy with the
+  required disclaimer. Sources: extracted game sprites, community icon packs,
+  coc.guide/fandom. Add small troop/hero/spell icons per row.
 - [idea] Track hero equipment / gear (Blacksmith, ore-based) as its own concern.
 - [idea] Persist snapshots over time to show real progress and velocity.

@@ -6,7 +6,9 @@
 - **Convex** — backend. An `action` calls the CoC API server-side; a
   `mutation` stores snapshots; a `query` reads them.
 - **Tailwind CSS** — styling.
-- **coc-info** — curated game data (TH max levels; later: times/costs).
+- **Game rulebook data** — accurate max levels, upgrade times/costs, and
+  entity IDs vendored from `coc.py`'s game-derived static data (`data/`),
+  slimmed into `src/data/gameData.generated.json` by `scripts/build-game-data.mjs`.
 - **Vercel** — hosting (later).
 
 ## Data flow (Phase 1)
@@ -19,7 +21,7 @@ flowchart LR
   action --> mut["storeSnapshot (mutation)"]
   mut --> db[("baseSnapshots")]
   action --> client["Client: buildVillageStats"]
-  cocinfo["coc-info: getMaxLevel / getType"] --> client
+  rulebook["Rulebook: gameData.generated.json (caps/times/costs/IDs)"] --> client
   client --> view["VillageStatsView: current vs TH cap"]
 ```
 
@@ -36,8 +38,12 @@ Convex environment variable (`COC_API_TOKEN`) and never reaches the client.
 - `convex/schema.ts` — `baseSnapshots` table.
 - `convex/players.ts` — `fetchPlayer` (action), `storeSnapshot` (internal
   mutation), `latestSnapshot` (query), `normalizeTag`.
-- `src/lib/gameData.ts` — joins CoC API items with `coc-info` TH caps and groups
-  them into categories (`hero`, `pet`, `spell`, `troop`, `siege`).
+- `data/coc-static-data.json` — vendored rulebook (from coc.py). `data/README.md`
+  documents source + how to refresh.
+- `scripts/build-game-data.mjs` — slims the rulebook into `src/data/gameData.generated.json`.
+- `src/lib/gameData.ts` — accessors over the generated data (`maxLevelAtTH`,
+  `upgradeTime`, `upgradeCost`, `idToName`) and joins CoC API items into
+  categories (`hero`, `pet`, `spell`, `troop`, `siege`).
 - `src/components/VillageStats.tsx` — presentational stats view.
 - `src/app/page.tsx` — tag input + orchestration.
 - `src/app/ConvexClientProvider.tsx` — Convex React client provider.
