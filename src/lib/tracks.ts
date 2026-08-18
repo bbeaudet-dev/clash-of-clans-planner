@@ -166,6 +166,17 @@ export function computeTracks(
             (cap - bl.level) * bl.count
           );
         }
+        // Copies this TH grants that aren't placed yet: built from scratch
+        // (placement is instant, so 0 -> cap is the full construction time).
+        const toBuild = r.toBuild ?? 0;
+        if (toBuild > 0) {
+          addWork(
+            "builder",
+            g.category,
+            upgradeTime(r.name, 0, cap) * toBuild,
+            cap * toBuild
+          );
+        }
       }
     }
     // Replace the current level's full upgrade time with the live in-progress
