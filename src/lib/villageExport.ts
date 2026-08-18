@@ -204,11 +204,12 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     id: number,
     levels: Map<number, number>,
     category: string,
-    nameOverride?: string
+    nameOverride?: string,
+    capOverride?: number
   ) => {
     const name = nameOverride ?? idToName[String(id)] ?? `#${id}`;
-    const cap = maxLevelAtTH(name, th);
-    const prevCap = th > 1 ? maxLevelAtTH(name, th - 1) : null;
+    const cap = capOverride ?? maxLevelAtTH(name, th);
+    const prevCap = capOverride ?? (th > 1 ? maxLevelAtTH(name, th - 1) : null);
 
     const byLevel: LevelCount[] = [...levels.entries()]
       .map(([level, count]) => ({ level, count }))
@@ -231,15 +232,21 @@ export function parseVillageExport(input: string | unknown): VillageExport {
   }
 
   // Helper Hut helpers (Builder's Apprentice, Lab Assistant, Alchemist, …) come
-  // in their own array and each is a singleton. Ones not in the rulebook are
-  // given a fallback name and treated as untracked (no cap -> shown complete),
-  // e.g. Prospector, which has a single level anyway.
+  // in their own array and each is a singleton. Ones not in the rulebook get a
+  // fallback name and their cap pinned to their current level, so single-level
+  // helpers like Prospector read as 1/1 (maxed).
   for (const h of raw.helpers ?? []) {
     if (typeof h.lvl !== "number") continue;
     const known = String(h.data) in idToName;
     const fallback = HELPER_FALLBACK_NAMES[h.data];
     if (!known && !fallback) continue;
-    pushRow(h.data, new Map([[h.lvl, 1]]), "helper", known ? undefined : fallback);
+    pushRow(
+      h.data,
+      new Map([[h.lvl, 1]]),
+      "helper",
+      known ? undefined : fallback,
+      known ? undefined : h.lvl
+    );
   }
 
   const knownOrder = BASE_CATEGORY_ORDER as readonly string[];
