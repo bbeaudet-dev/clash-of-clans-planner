@@ -103,6 +103,7 @@ export function TimingPanel({
   loading = false,
   stats,
   village,
+  skips,
 }: {
   builderCount: number;
   onBuilderCount: (n: number) => void;
@@ -111,8 +112,15 @@ export function TimingPanel({
   loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
+  skips: string[];
 }) {
-  const tracks = computeTracks(stats, village, builderCount, goldPass);
+  const tracks = computeTracks(
+    stats,
+    village,
+    builderCount,
+    goldPass,
+    new Set(skips)
+  );
   const active = tracks.filter((t) => t.levels > 0);
   const bottleneck = active.reduce<Track | null>(
     (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),

@@ -96,7 +96,8 @@ export function computeTracks(
   stats: VillageStats | null,
   village: VillageExport | null,
   builderCount: number,
-  goldPass = false
+  goldPass = false,
+  skips: Set<string> = new Set()
 ): Track[] {
   // Each bucket splits work into `disc` (future upgrades, eligible for the Gold
   // Pass discount) and `fixed` (live in-progress timers, already committed).
@@ -140,6 +141,7 @@ export function computeTracks(
       const t = ARMY_TRACK[g.category];
       if (!t) continue;
       for (const r of g.rows) {
+        if (skips.has(`army:${r.name}`)) continue;
         if (r.thMax === null || r.remaining <= 0) continue;
         const seconds = upgradeTime(r.name, r.level, r.thMax);
         let subKey: string | null = null;
@@ -155,6 +157,7 @@ export function computeTracks(
     for (const g of village.groups) {
       if (g.category === "helper") continue; // gold-only, no build time
       for (const r of g.rows) {
+        if (skips.has(`building:${r.name}`)) continue;
         if (r.cap === null) continue;
         const cap = r.cap;
         for (const bl of r.byLevel) {
@@ -182,6 +185,7 @@ export function computeTracks(
     // Replace the current level's full upgrade time with the live in-progress
     // timer: the committed step is fixed (no discount), the rest stays future.
     for (const u of village.inProgress) {
+      if (skips.has(`building:${u.name}`)) continue;
       const cat = getEntity(u.name)?.category;
       const subKey = cat ? builderSubForCategory(cat) : null;
       if (!subKey) continue;

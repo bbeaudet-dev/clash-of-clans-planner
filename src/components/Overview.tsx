@@ -15,6 +15,22 @@ import {
 } from "@/lib/villageExport";
 import { computeBaseSummary, formatDuration } from "@/lib/tracks";
 
+const SKIPPABLE_ARMY_CATEGORIES = new Set<Category>([
+  "hero",
+  "pet",
+  "troop",
+  "siege",
+  "spell",
+]);
+
+function armySkipKey(row: StatRow): string {
+  return `army:${row.name}`;
+}
+
+function buildingSkipKey(row: BuildingRow): string {
+  return `building:${row.name}`;
+}
+
 // Rushed thresholds, in days of total upgrade work still owed below the
 // previous TH caps. Below 60d is a light rush, 60–100d moderate, >100d heavy.
 function rushColor(seconds: number): string {
@@ -38,7 +54,17 @@ function Bar({ pct, maxed }: { pct: number; maxed: boolean }) {
   );
 }
 
-function ArmyRow({ row }: { row: StatRow }) {
+function ArmyRow({
+  row,
+  skipMode,
+  skipped,
+  onToggleSkip,
+}: {
+  row: StatRow;
+  skipMode: boolean;
+  skipped: boolean;
+  onToggleSkip?: () => void;
+}) {
   const isMaxed = row.thMax !== null && row.level >= row.thMax;
   const pct =
     row.thMax && row.thMax > 0
@@ -55,10 +81,26 @@ function ArmyRow({ row }: { row: StatRow }) {
     row.nextThMax !== null && row.thMax !== null && row.nextThMax > row.thMax;
 
   return (
-    <li className="py-1.5">
+    <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {row.name}
+        <span className="flex min-w-0 items-center gap-2">
+          {skipMode && onToggleSkip && (
+            <input
+              type="checkbox"
+              checked={skipped}
+              onChange={onToggleSkip}
+              aria-label={`Skip ${row.name}`}
+              className="h-4 w-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
+            />
+          )}
+          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {row.name}
+          </span>
+          {skipped && (
+            <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              skipped
+            </span>
+          )}
         </span>
         <span className="flex shrink-0 items-center gap-2 font-mono text-xs">
           {catchUp > 0 && (
@@ -100,7 +142,17 @@ function ArmyRow({ row }: { row: StatRow }) {
   );
 }
 
-function BuildingRowItem({ row }: { row: BuildingRow }) {
+function BuildingRowItem({
+  row,
+  skipMode,
+  skipped,
+  onToggleSkip,
+}: {
+  row: BuildingRow;
+  skipMode: boolean;
+  skipped: boolean;
+  onToggleSkip?: () => void;
+}) {
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
   const multiple = row.total > 1;
 
@@ -139,16 +191,32 @@ function BuildingRowItem({ row }: { row: BuildingRow }) {
   const avgStr = Number.isInteger(avg) ? String(avg) : avg.toFixed(1);
 
   return (
-    <li className="py-1.5">
+    <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span
-          className={`truncate text-sm font-medium ${
-            notBuilt
-              ? "text-zinc-400 dark:text-zinc-600"
-              : "text-zinc-900 dark:text-zinc-100"
-          }`}
-        >
-          {row.name}
+        <span className="flex min-w-0 items-center gap-2">
+          {skipMode && onToggleSkip && (
+            <input
+              type="checkbox"
+              checked={skipped}
+              onChange={onToggleSkip}
+              aria-label={`Skip ${row.name}`}
+              className="h-4 w-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
+            />
+          )}
+          <span
+            className={`truncate text-sm font-medium ${
+              notBuilt
+                ? "text-zinc-400 dark:text-zinc-600"
+                : "text-zinc-900 dark:text-zinc-100"
+            }`}
+          >
+            {row.name}
+          </span>
+          {skipped && (
+            <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              skipped
+            </span>
+          )}
         </span>
         <span className="flex shrink-0 items-center gap-2 font-mono text-xs">
           {catchUp > 0 && (
@@ -266,6 +334,10 @@ export function Overview({
   loading = false,
   stats,
   village,
+  skips,
+  skipMode,
+  onSkipMode,
+  onToggleSkip,
 }: {
   playerName: string | null;
   playerTag: string | null;
@@ -273,10 +345,15 @@ export function Overview({
   loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
+  skips: string[];
+  skipMode: boolean;
+  onSkipMode: (enabled: boolean) => void;
+  onToggleSkip: (key: string) => void;
 }) {
   const summary = computeBaseSummary(stats, village);
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
+  const skipSet = new Set(skips);
 
   const armyGroup = (c: Category) =>
     stats?.groups.find((g) => g.category === c) ?? null;
@@ -321,6 +398,22 @@ export function Overview({
                 ? `${formatDuration(summary.rushedSeconds)} rushed`
                 : "0d 0h rushed"}
             </span>
+            {skips.length > 0 && (
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                {skips.length} skipped
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onSkipMode(!skipMode)}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                skipMode
+                  ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              }`}
+            >
+              {skipMode ? "Done" : "Skip Mode"}
+            </button>
           </>
         )}
       </div>
@@ -333,49 +426,73 @@ export function Overview({
           <LoadingSectionCard title="Builders" />
         </div>
       ) : (
-      <div className="grid gap-6 sm:grid-cols-2">
-        {CATEGORY_ORDER.map((category) => {
-          const unlockTH = CATEGORY_UNLOCK_TH[category];
-          // Only show a category once it's unlocked at this TH; not-yet-unlocked
-          // categories (e.g. Pets, Guardians) simply appear when reached.
-          if (townHallLevel > 0 && unlockTH > townHallLevel) return null;
-          const group = armyGroup(category);
-          return (
-            <SectionCard
-              key={`army-${category}`}
-              title={CATEGORY_LABELS[category]}
-              count={group?.rows.length ?? 0}
-              note={group && group.rows.length > 0 ? undefined : "None yet"}
-            >
-              {group?.rows.map((row) => (
-                <ArmyRow key={row.name} row={row} />
-              ))}
-            </SectionCard>
-          );
-        })}
+        <div className="grid gap-6 sm:grid-cols-2">
+          {CATEGORY_ORDER.map((category) => {
+            const unlockTH = CATEGORY_UNLOCK_TH[category];
+            // Only show a category once it's unlocked at this TH; not-yet-unlocked
+            // categories (e.g. Pets, Guardians) simply appear when reached.
+            if (townHallLevel > 0 && unlockTH > townHallLevel) return null;
+            const group = armyGroup(category);
+            return (
+              <SectionCard
+                key={`army-${category}`}
+                title={CATEGORY_LABELS[category]}
+                count={group?.rows.length ?? 0}
+                note={group && group.rows.length > 0 ? undefined : "None yet"}
+              >
+                {group?.rows.map((row) => {
+                  const skippable = SKIPPABLE_ARMY_CATEGORIES.has(category);
+                  const key = armySkipKey(row);
+                  return (
+                    <ArmyRow
+                      key={row.name}
+                      row={row}
+                      skipMode={skipMode}
+                      skipped={skippable && skipSet.has(key)}
+                      onToggleSkip={
+                        skippable ? () => onToggleSkip(key) : undefined
+                      }
+                    />
+                  );
+                })}
+              </SectionCard>
+            );
+          })}
 
-        {BASE_CATEGORY_ORDER.map((category) => {
-          const group = buildingGroup(category);
-          return (
-            <SectionCard
-              key={`base-${category}`}
-              title={BASE_CATEGORY_LABELS[category] ?? category}
-              count={group?.rows.length ?? 0}
-              note={
-                group && group.rows.length > 0
-                  ? undefined
-                  : village
-                    ? "None"
-                    : "Import village data to view"
-              }
-            >
-              {group?.rows.map((row) => (
-                <BuildingRowItem key={row.id} row={row} />
-              ))}
-            </SectionCard>
-          );
-        })}
-      </div>
+          {BASE_CATEGORY_ORDER.map((category) => {
+            const group = buildingGroup(category);
+            return (
+              <SectionCard
+                key={`base-${category}`}
+                title={BASE_CATEGORY_LABELS[category] ?? category}
+                count={group?.rows.length ?? 0}
+                note={
+                  group && group.rows.length > 0
+                    ? undefined
+                    : village
+                      ? "None"
+                      : "Import village data to view"
+                }
+              >
+                {group?.rows.map((row) => {
+                  const skippable = category !== "helper" && row.cap !== null;
+                  const key = buildingSkipKey(row);
+                  return (
+                    <BuildingRowItem
+                      key={row.id}
+                      row={row}
+                      skipMode={skipMode}
+                      skipped={skippable && skipSet.has(key)}
+                      onToggleSkip={
+                        skippable ? () => onToggleSkip(key) : undefined
+                      }
+                    />
+                  );
+                })}
+              </SectionCard>
+            );
+          })}
+        </div>
       )}
     </div>
   );

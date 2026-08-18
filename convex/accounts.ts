@@ -69,6 +69,7 @@ export const saveCurrentAccount = mutation({
         townHallLevel: args.townHallLevel,
         builderCount: builderCount ?? 6,
         goldPass: args.goldPass ?? false,
+        skips: [],
         order: now,
         createdAt: now,
         updatedAt: now,
@@ -115,6 +116,21 @@ export const updateAccountSettings = mutation({
     await ctx.db.patch(args.accountId, {
       builderCount: clampBuilderCount(args.builderCount),
       goldPass: args.goldPass,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const updateAccountSkips = mutation({
+  args: {
+    accountId: v.id("cocAccounts"),
+    skips: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await currentUserId(ctx);
+    await assertOwnsAccount(ctx, args.accountId, userId);
+    await ctx.db.patch(args.accountId, {
+      skips: args.skips,
       updatedAt: Date.now(),
     });
   },

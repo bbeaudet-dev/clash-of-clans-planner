@@ -9,6 +9,7 @@ export default defineSchema({
     townHallLevel: v.number(),
     builderCount: v.optional(v.number()),
     goldPass: v.optional(v.boolean()),
+    skips: v.optional(v.array(v.string())),
     order: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

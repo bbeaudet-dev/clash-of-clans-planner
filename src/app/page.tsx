@@ -64,6 +64,42 @@ export default function Home() {
       );
     }
   });
+  const updateAccountSkips = useMutation(
+    api.accounts.updateAccountSkips
+  ).withOptimisticUpdate((store, args) => {
+    const accounts = store.getQuery(api.accounts.listMyAccounts, {});
+    if (accounts) {
+      store.setQuery(
+        api.accounts.listMyAccounts,
+        {},
+        accounts.map((account) =>
+          account._id === args.accountId
+            ? {
+                ...account,
+                skips: args.skips,
+              }
+            : account
+        )
+      );
+    }
+
+    const accountData = store.getQuery(api.accounts.getAccountData, {
+      accountId: args.accountId,
+    });
+    if (accountData) {
+      store.setQuery(
+        api.accounts.getAccountData,
+        { accountId: args.accountId },
+        {
+          ...accountData,
+          account: {
+            ...accountData.account,
+            skips: args.skips,
+          },
+        }
+      );
+    }
+  });
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
   const [tag, setTag] = useState(DEFAULT_TAG);
@@ -78,6 +114,8 @@ export default function Home() {
   const [village, setVillage] = useState<VillageExport | null>(null);
   const [builderCount, setBuilderCount] = useState(6);
   const [goldPass, setGoldPass] = useState(false);
+  const [skips, setSkips] = useState<string[]>([]);
+  const [skipMode, setSkipMode] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -119,6 +157,7 @@ export default function Home() {
       setTag(accountData.account.tag);
       setBuilderCount(clampBuilderCount(accountData.account.builderCount ?? 6));
       setGoldPass(accountData.account.goldPass ?? false);
+      setSkips(accountData.account.skips ?? []);
       if (accountData.apiSnapshot?.raw) {
         setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
       } else {
@@ -235,7 +274,11 @@ export default function Home() {
   function handleSelectAccount(accountId: Id<"cocAccounts"> | null) {
     hydratedAccountIdRef.current = null;
     setSelectedAccountId(accountId);
-    if (!accountId) return;
+    if (!accountId) {
+      setSkips([]);
+      setSkipMode(false);
+      return;
+    }
 
     const account = accounts?.find((a) => a._id === accountId);
     if (!account) return;
@@ -243,6 +286,8 @@ export default function Home() {
     setTag(account.tag);
     setBuilderCount(clampBuilderCount(account.builderCount ?? 6));
     setGoldPass(account.goldPass ?? false);
+    setSkips(account.skips ?? []);
+    setSkipMode(false);
     setPlayer(null);
     setVillage(null);
     setImportSuccess(null);
@@ -266,6 +311,18 @@ export default function Home() {
   function handleGoldPass(nextGoldPass: boolean) {
     setGoldPass(nextGoldPass);
     persistAccountSettings(builderCount, nextGoldPass);
+  }
+
+  function handleToggleSkip(key: string) {
+    const nextSkips = skips.includes(key)
+      ? skips.filter((skip) => skip !== key)
+      : [...skips, key];
+    setSkips(nextSkips);
+    if (!effectiveSelectedAccountId) return;
+    void updateAccountSkips({
+      accountId: effectiveSelectedAccountId,
+      skips: nextSkips,
+    });
   }
 
   const stats = player ? buildVillageStats(player) : null;
@@ -317,6 +374,8 @@ export default function Home() {
               onChange={(e) => {
                 setTag(e.target.value);
                 setSelectedAccountId(null);
+                setSkips([]);
+                setSkipMode(false);
               }}
               placeholder="#PLAYERTAG"
               spellCheck={false}
@@ -438,6 +497,10 @@ export default function Home() {
               loading={snapshotsLoading}
               stats={stats}
               village={village}
+              skips={skips}
+              skipMode={skipMode}
+              onSkipMode={setSkipMode}
+              onToggleSkip={handleToggleSkip}
             />
             <TimingPanel
               builderCount={builderCount}
@@ -447,6 +510,7 @@ export default function Home() {
               loading={snapshotsLoading}
               stats={stats}
               village={village}
+              skips={skips}
             />
           </div>
         )}
