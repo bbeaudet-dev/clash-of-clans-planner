@@ -6,10 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:data": "node scripts/build-game-data.mjs"
   },
   "dependencies": {
-    "coc-info": "^1.1.0",
     "convex": "^1.44.0",
     "next": "16.3.1",
     "react": "19.2.8",
