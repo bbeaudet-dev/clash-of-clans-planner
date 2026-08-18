@@ -1,5 +1,16 @@
-import { getEntity, upgradeTime, VillageStats } from "./gameData";
-import { buildingProgress, VillageExport } from "./villageExport";
+import {
+  buildingRosterAtTH,
+  getEntity,
+  maxLevelAtTH,
+  upgradeTime,
+  VillageStats,
+} from "./gameData";
+import { BuildingRow, buildingProgress, VillageExport } from "./villageExport";
+
+// Walls are treated as one flat block of "levels" in the % (weighted only by
+// how many of your walls are at the current cap), rather than tracking each
+// wall segment's level.
+const WALL_BAND_LEVELS = 15;
 
 // The three parallel "tracks" a player progresses through. Time-to-max for the
 // whole base is the slowest (bottleneck) track.
@@ -280,11 +291,21 @@ export function computeBaseSummary(
   }
 
   if (village) {
+    const th = village.townHallLevel;
+    const presentByName = new Map<string, number>();
+    let wallRow: BuildingRow | null = null;
+
     for (const g of village.groups) {
       for (const r of g.rows) {
+        presentByName.set(r.name, r.total);
+        const cat = getEntity(r.name)?.category;
+        if (cat === "wall") {
+          wallRow = r; // flat-weighted below
+          continue;
+        }
         if (r.cap === null) continue; // untracked (B.O.B, Helper Hut, …)
         // The Town Hall's next level is the next-TH transition, not current work.
-        if (getEntity(r.name)?.category === "town hall") continue;
+        if (cat === "town hall") continue;
         const progress = buildingProgress(r);
         bandTotal += progress.bandTotal;
         bandDone += progress.doneInBand;
@@ -295,6 +316,35 @@ export function computeBaseSummary(
           }
         }
       }
+    }
+
+    // Buildings this TH grants that you haven't placed yet (a new Eagle, an
+    // extra Cannon, …). Each is built from scratch, so its full 0 -> cap range
+    // is new work toward maxing (never counted as rushed).
+    for (const [name, expected] of buildingRosterAtTH(th)) {
+      const cat = getEntity(name)?.category;
+      if (cat !== "defense" && cat !== "resource" && cat !== "army") continue;
+      const unbuilt = Math.max(0, expected - (presentByName.get(name) ?? 0));
+      if (unbuilt === 0) continue;
+      const cap = maxLevelAtTH(name, th);
+      if (cap !== null) bandTotal += cap * unbuilt;
+    }
+
+    // Walls: a flat block of "levels" weighted only by how many of your walls
+    // are already at the current cap (individual wall levels aren't tracked,
+    // and walls never count toward rushed time).
+    if (wallRow) {
+      const wallCap = maxLevelAtTH("Wall", th);
+      const totalWalls = wallRow.total;
+      const maxedWalls =
+        wallCap === null
+          ? 0
+          : wallRow.byLevel
+              .filter((l) => l.level >= wallCap)
+              .reduce((s, l) => s + l.count, 0);
+      bandTotal += WALL_BAND_LEVELS;
+      bandDone +=
+        totalWalls > 0 ? WALL_BAND_LEVELS * (maxedWalls / totalWalls) : 0;
     }
   }
 
