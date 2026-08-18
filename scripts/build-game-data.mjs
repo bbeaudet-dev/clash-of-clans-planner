@@ -10,14 +10,38 @@ const OUT = join(__dirname, "..", "src", "data", "gameData.generated.json");
 
 const raw = JSON.parse(readFileSync(RAW, "utf8"));
 
-/** Normalize one source level row into { level, time, cost, th }. */
-function levelRow(lv) {
-  return {
-    level: lv.level,
-    time: lv.upgrade_time ?? lv.build_time ?? 0,
-    cost: lv.upgrade_cost ?? lv.build_cost ?? 0,
-    th: lv.required_townhall ?? null,
-  };
+/**
+ * Normalize a source `levels` array into rows of { level, time, cost, th } where
+ * each row holds the time/cost of the level N -> N+1 upgrade.
+ *
+ * The source uses two opposite conventions: troops/heroes/spells/pets store the
+ * N -> N+1 step in `upgrade_time`/`upgrade_cost` on level N, while buildings and
+ * traps store the (N-1) -> N step in `build_time`/`build_cost` on level N. For
+ * the build-style entities we shift the value back one level so all entities end
+ * up on the single "N -> N+1 on row N" convention the app assumes.
+ */
+function normalizeLevels(rawLevels) {
+  const buildStyle = rawLevels.some(
+    (l) => "build_time" in l || "build_cost" in l
+  );
+  return rawLevels.map((lv, i) => {
+    const th = lv.required_townhall ?? null;
+    if (buildStyle) {
+      const next = rawLevels[i + 1];
+      return {
+        level: lv.level,
+        time: next?.build_time ?? 0,
+        cost: next?.build_cost ?? 0,
+        th,
+      };
+    }
+    return {
+      level: lv.level,
+      time: lv.upgrade_time ?? 0,
+      cost: lv.upgrade_cost ?? 0,
+      th,
+    };
+  });
 }
 
 function categoryFor(sourceKey, entity) {
@@ -71,7 +95,7 @@ for (const key of SOURCE_KEYS) {
       // Super troops (marked by a `super_troop` block in the source) are boosted
       // variants with no independent upgrade level, so we flag and exclude them.
       ...(e.super_troop ? { isSuper: true } : {}),
-      levels: (e.levels ?? []).map(levelRow),
+      levels: normalizeLevels(e.levels ?? []),
     };
 
     // Prefer the home-village entity when a name exists in both villages
