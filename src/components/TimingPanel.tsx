@@ -16,6 +16,12 @@ function finishDate(seconds: number): string {
 function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean }) {
   const done = track.levels === 0;
   const expandable = !done && track.subs.length > 0;
+  const distributedFinish =
+    track.parallel > 1
+      ? Math.round(track.workSeconds / track.parallel)
+      : track.finishSeconds;
+  const criticalPath = track.criticalPathSeconds ?? 0;
+  const criticalLimited = criticalPath > distributedFinish;
 
   const header = (
     <>
@@ -40,6 +46,7 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
             {track.parallel > 1
               ? ` · ${formatDuration(track.workSeconds)} work ÷ ${track.parallel}`
               : ""}
+            {criticalLimited ? ` · max item ${formatDuration(criticalPath)}` : ""}
           </span>
           <span>done ~ {finishDate(track.finishSeconds)}</span>
         </div>

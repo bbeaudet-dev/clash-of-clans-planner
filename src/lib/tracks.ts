@@ -31,6 +31,8 @@ export interface Track {
   workSeconds: number;
   /** Wall-clock estimate: builder work is shared across builders. */
   finishSeconds: number;
+  /** Longest sequential item chain, used as a floor for parallel tracks. */
+  criticalPathSeconds?: number;
   /** Remaining upgrade levels on this track. */
   levels: number;
   /** How many workers share the track (builders for Builders, else 1). */
@@ -135,6 +137,17 @@ export function computeTracks(
       b.levels += levels;
     }
   };
+  const factor = goldPass ? GOLD_PASS_FACTOR : 1;
+  const secondsOf = (b: Bucket): number =>
+    Math.max(0, b.disc) * factor + b.fixed;
+  let builderCriticalSeconds = 0;
+  const recordBuilderChain = (disc: number, fixed = 0) => {
+    builderCriticalSeconds = Math.max(
+      builderCriticalSeconds,
+      Math.max(0, disc) * factor + fixed
+    );
+  };
+  const inProgressKey = (name: string, level: number) => `${name}\0${level}`;
 
   if (stats) {
     for (const g of stats.groups) {
@@ -149,11 +162,21 @@ export function computeTracks(
         else if (t === "lab")
           subKey = labSubKey(g.category, getEntity(r.name)?.resource ?? null);
         addWork(t, subKey, seconds, r.remaining);
+        if (t === "builder") recordBuilderChain(seconds);
       }
     }
   }
 
   if (village) {
+    const inProgressByNameLevel = new Map<string, number[]>();
+    for (const u of village.inProgress) {
+      if (skips.has(`building:${u.name}`)) continue;
+      const key = inProgressKey(u.name, u.level);
+      const timers = inProgressByNameLevel.get(key) ?? [];
+      timers.push(u.secondsLeft);
+      inProgressByNameLevel.set(key, timers);
+    }
+
     for (const g of village.groups) {
       if (g.category === "helper") continue; // gold-only, no build time
       for (const r of g.rows) {
@@ -162,10 +185,22 @@ export function computeTracks(
         const cap = r.cap;
         for (const bl of r.byLevel) {
           if (bl.level >= cap) continue;
+          const chainSeconds = upgradeTime(r.name, bl.level, cap);
+          const liveTimers = inProgressByNameLevel.get(
+            inProgressKey(r.name, bl.level)
+          );
+          const liveCount = Math.min(bl.count, liveTimers?.length ?? 0);
+          for (let i = 0; i < liveCount; i++) {
+            recordBuilderChain(
+              upgradeTime(r.name, bl.level + 1, cap),
+              liveTimers?.[i] ?? 0
+            );
+          }
+          if (bl.count > liveCount) recordBuilderChain(chainSeconds);
           addWork(
             "builder",
             g.category,
-            upgradeTime(r.name, bl.level, cap) * bl.count,
+            chainSeconds * bl.count,
             (cap - bl.level) * bl.count
           );
         }
@@ -173,10 +208,12 @@ export function computeTracks(
         // (placement is instant, so 0 -> cap is the full construction time).
         const toBuild = r.toBuild ?? 0;
         if (toBuild > 0) {
+          const chainSeconds = upgradeTime(r.name, 0, cap);
+          recordBuilderChain(chainSeconds);
           addWork(
             "builder",
             g.category,
-            upgradeTime(r.name, 0, cap) * toBuild,
+            chainSeconds * toBuild,
             cap * toBuild
           );
         }
@@ -197,10 +234,6 @@ export function computeTracks(
       b.fixed += u.secondsLeft;
     }
   }
-
-  const factor = goldPass ? GOLD_PASS_FACTOR : 1;
-  const secondsOf = (b: Bucket): number =>
-    Math.max(0, b.disc) * factor + b.fixed;
 
   // Show every applicable sub-group (even maxed/0), but only ones whose data
   // source is loaded: heroes need the army lookup, buildings need the export.
@@ -225,6 +258,8 @@ export function computeTracks(
   const hasVillage = village !== null;
   const builders = Math.max(1, builderCount);
   const builderWork = secondsOf(track.builder);
+  const distributedBuilderFinish = Math.round(builderWork / builders);
+  const builderCriticalFinish = Math.round(builderCriticalSeconds);
   const labWork = secondsOf(track.lab);
   const petWork = secondsOf(track.pets);
   return [
@@ -232,7 +267,8 @@ export function computeTracks(
       key: "builder",
       label: "Builders",
       workSeconds: builderWork,
-      finishSeconds: Math.round(builderWork / builders),
+      finishSeconds: Math.max(distributedBuilderFinish, builderCriticalFinish),
+      criticalPathSeconds: builderCriticalFinish,
       levels: track.builder.levels,
       parallel: builders,
       subs: orderedSubs("builder", BUILDER_SUB_ORDER, (key) =>
