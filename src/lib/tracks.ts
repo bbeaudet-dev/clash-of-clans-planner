@@ -33,6 +33,10 @@ export interface Track {
   finishSeconds: number;
   /** Longest sequential item chain, used as a floor for parallel tracks. */
   criticalPathSeconds?: number;
+  /** Time remaining before the next Town Hall upgrade should begin. */
+  beginTownHallUpgradeSeconds?: number;
+  /** Duration of the next Town Hall upgrade, after applicable discounts. */
+  townHallUpgradeSeconds?: number;
   /** Remaining upgrade levels on this track. */
   levels: number;
   /** How many workers share the track (builders for Builders, else 1). */
@@ -167,6 +171,7 @@ export function computeTracks(
   const secondsOf = (b: Bucket): number =>
     Math.max(0, b.disc) * factor + b.fixed;
   let builderCriticalSeconds = 0;
+  let townHallUpgradeSeconds = 0;
   const recordBuilderChain = (disc: number, fixed = 0) => {
     builderCriticalSeconds = Math.max(
       builderCriticalSeconds,
@@ -257,6 +262,7 @@ export function computeTracks(
       );
       if (thStep > 0) {
         recordBuilderChain(thStep);
+        townHallUpgradeSeconds = thStep * factor;
         addWork("builder", "village", thStep, 1);
       }
     }
@@ -313,6 +319,13 @@ export function computeTracks(
   const builderWork = secondsOf(track.builder);
   const distributedBuilderFinish = Math.round(builderWork / builders);
   const builderCriticalFinish = Math.round(builderCriticalSeconds);
+  const beginTownHallUpgradeSeconds =
+    townHallUpgradeSeconds > 0
+      ? Math.max(
+          0,
+          Math.round((builderWork - builders * townHallUpgradeSeconds) / builders)
+        )
+      : undefined;
   const labWork = secondsOf(track.lab);
   const petWork = secondsOf(track.pets);
   return [
@@ -322,6 +335,8 @@ export function computeTracks(
       workSeconds: builderWork,
       finishSeconds: Math.max(distributedBuilderFinish, builderCriticalFinish),
       criticalPathSeconds: builderCriticalFinish,
+      beginTownHallUpgradeSeconds,
+      townHallUpgradeSeconds,
       levels: track.builder.levels,
       parallel: builders,
       subs: orderedSubs("builder", BUILDER_SUB_ORDER, (key) =>

@@ -57,7 +57,7 @@ function TrackCard({
           <span>
             {track.levels} levels
             {track.parallel > 1
-              ? ` · ${formatDuration(track.workSeconds)} work ÷ ${track.parallel}`
+              ? ` · ${formatDuration(track.workSeconds)} ÷ ${track.parallel}`
               : ""}
             {criticalLimited ? ` · max item ${formatDuration(criticalPath)}` : ""}
           </span>
@@ -175,6 +175,8 @@ export function TimingPanel({
     (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),
     null
   );
+  const builderTrack = tracks.find((t) => t.key === "builder");
+  const beginTownHallUpgradeSeconds = builderTrack?.beginTownHallUpgradeSeconds;
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:h-fit">
@@ -243,6 +245,20 @@ export function TimingPanel({
             {stats || village
               ? "Everything tracked is maxed. 🎉"
               : "Look up a player and import village data to see time-to-max."}
+          </p>
+        )}
+
+        {!loading && beginTownHallUpgradeSeconds !== undefined && (
+          <p
+            className="mt-2 text-xs text-zinc-500 dark:text-zinc-400"
+            title="Based on Builder work only: start when the remaining non-TH work can fill the other builders during the Town Hall upgrade."
+          >
+            Begin TH upgrade in:{" "}
+            <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">
+              {beginTownHallUpgradeSeconds === 0
+                ? "now"
+                : formatDuration(beginTownHallUpgradeSeconds)}
+            </span>
           </p>
         )}
 
