@@ -14,6 +14,7 @@ import {
 } from "@/lib/villageExport";
 import { pendingUpgrades } from "@/lib/tracks";
 import { buildingSkipCapacity, getSkipCount } from "@/lib/skipModel";
+import { SkipIcon } from "@/components/icons";
 import { ArmyRow, BuildingRowItem } from "@/components/overview/Rows";
 import {
   LoadingSectionCard,
@@ -44,8 +45,17 @@ export function Overview({
   loading = false,
   stats,
   village,
-  skips,
+  activeSkips,
   skipMode,
+  builderCount,
+  onBuilderCount,
+  goldPass,
+  onGoldPass,
+  maxBuilderCount,
+  onEnterSkipMode,
+  onSaveSkips,
+  onDiscardSkipDraft,
+  skipDraftDirty,
   onSetSkipCount,
 }: {
   playerName: string | null;
@@ -54,13 +64,22 @@ export function Overview({
   loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
-  skips: string[];
+  activeSkips: string[];
   skipMode: boolean;
+  builderCount: number;
+  onBuilderCount: (builderCount: number) => void;
+  goldPass: boolean;
+  onGoldPass: (goldPass: boolean) => void;
+  maxBuilderCount: number;
+  onEnterSkipMode: () => void;
+  onSaveSkips: () => void;
+  onDiscardSkipDraft: () => void;
+  skipDraftDirty: boolean;
   onSetSkipCount: (key: string, nextCount: number, maxCount: number) => void;
 }) {
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
-  const skipSet = new Set(skips);
+  const skipSet = new Set(activeSkips);
   // How many genuinely-active upgrades each item has (finished-since-export or
   // API-superseded timers excluded), so bars show as "active" and extend to the
   // level being worked toward.
@@ -114,26 +133,91 @@ export function Overview({
 
   return (
     <div className="w-full" aria-busy={loading}>
-      <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div>
-          <h2 className="text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
-            {playerName ?? "Village"}
-          </h2>
-          {playerTag && (
-            <p className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-              {playerTag}
-            </p>
-          )}
+      <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-semibold leading-tight text-zinc-900 dark:text-zinc-50">
+                {playerName ?? "Village"}
+              </h2>
+              {playerTag && (
+                <p className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                  {playerTag}
+                </p>
+              )}
+            </div>
+            {townHallLevel > 0 && (
+              <span className="shrink-0 rounded-full bg-zinc-900 px-2.5 py-0.5 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                TH{townHallLevel}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+            <label className="flex items-center gap-2">
+              Builders
+              <input
+                type="number"
+                min={1}
+                max={maxBuilderCount}
+                value={builderCount}
+                onChange={(e) =>
+                  onBuilderCount(
+                    Math.min(
+                      maxBuilderCount,
+                      Math.max(1, Number(e.target.value) || 1)
+                    )
+                  )
+                }
+                className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-2">
+              Gold Pass
+              <input
+                type="checkbox"
+                checked={goldPass}
+                onChange={(e) => onGoldPass(e.target.checked)}
+                className="h-4 w-4 accent-amber-500"
+              />
+            </label>
+
+            {skipMode ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onSaveSkips}
+                  disabled={!skipDraftDirty}
+                  className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Save Skips
+                </button>
+                <button
+                  type="button"
+                  onClick={onDiscardSkipDraft}
+                  className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  Exit Without Saving Skips
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onEnterSkipMode}
+                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                <SkipIcon className="h-3.5 w-3.5 text-amber-500" />
+                Skip Mode
+              </button>
+            )}
+          </div>
         </div>
-        {townHallLevel > 0 && (
-          <span className="rounded-full bg-zinc-900 px-2.5 py-0.5 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
-            TH{townHallLevel}
-          </span>
-        )}
+
         {loading && !stats && !village ? (
-          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <p className="mt-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
             Loading account data...
-          </span>
+          </p>
         ) : null}
       </div>
 

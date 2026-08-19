@@ -16,19 +16,32 @@ export function UserMenu({
   accounts,
   selectedAccountId,
   onSelectAccount,
-  onSaveCurrent,
-  saveDisabled,
-  saving,
+  editingAccountId,
+  editAccountName,
+  onStartEditAccount,
+  onEditAccountName,
+  onRenameAccount,
+  onCancelEditAccount,
+  onRequestDeleteAccount,
+  renaming,
 }: {
   accounts: AccountOption[] | undefined;
   selectedAccountId: Id<"cocAccounts"> | null;
   onSelectAccount: (accountId: Id<"cocAccounts"> | null) => void;
-  onSaveCurrent: () => void;
-  saveDisabled: boolean;
-  saving: boolean;
+  editingAccountId: Id<"cocAccounts"> | null;
+  editAccountName: string;
+  onStartEditAccount: () => void;
+  onEditAccountName: (name: string) => void;
+  onRenameAccount: () => void;
+  onCancelEditAccount: () => void;
+  onRequestDeleteAccount: () => void;
+  renaming: boolean;
 }) {
   const user = useQuery(api.auth.getCurrentUser);
   const accountsLoading = accounts === undefined;
+  const selectedAccount = accounts?.find((account) => account._id === selectedAccountId);
+  const editingSelectedAccount =
+    Boolean(selectedAccountId) && editingAccountId === selectedAccountId;
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -77,14 +90,52 @@ export function UserMenu({
         )}
       </select>
 
-      <button
-        type="button"
-        onClick={onSaveCurrent}
-        disabled={saveDisabled || saving}
-        className="mt-3 w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
-        {saving ? "Saving..." : "Save current as account"}
-      </button>
+      {selectedAccount && !editingSelectedAccount && (
+        <button
+          type="button"
+          onClick={onStartEditAccount}
+          className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+        >
+          Edit Account
+        </button>
+      )}
+
+      {selectedAccount && editingSelectedAccount && (
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            Account name
+          </label>
+          <input
+            value={editAccountName}
+            onChange={(e) => onEditAccountName(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onRenameAccount}
+              disabled={renaming}
+              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              {renaming ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEditAccount}
+              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-950"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onRequestDeleteAccount}
+              className="ml-auto rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+            >
+              Delete Account
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

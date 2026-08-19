@@ -67,7 +67,7 @@ export const saveCurrentAccount = mutation({
         tag,
         name: args.name,
         townHallLevel: args.townHallLevel,
-        builderCount: builderCount ?? 6,
+        builderCount: builderCount ?? 5,
         goldPass: args.goldPass ?? false,
         skips: [],
         order: now,
@@ -79,7 +79,7 @@ export const saveCurrentAccount = mutation({
       await ctx.db.patch(existing._id, {
         name: args.name,
         townHallLevel: args.townHallLevel,
-        builderCount: builderCount ?? existing.builderCount ?? 6,
+        builderCount: builderCount ?? existing.builderCount ?? 5,
         goldPass: args.goldPass ?? existing.goldPass ?? false,
         updatedAt: now,
       });

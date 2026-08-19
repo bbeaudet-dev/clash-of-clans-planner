@@ -13,8 +13,9 @@ import { UserMenu } from "@/components/UserMenu";
 import { VillageImportPanel } from "@/components/VillageImportPanel";
 import { setSkipCount } from "@/lib/skipModel";
 
-const DEFAULT_TAG = "#Q8JJJ2UP";
+const DEFAULT_TAG = "";
 const MAX_BUILDERS = 7;
+const SKIP_DRAFT_PREFIX = "coc-planner:skip-draft:";
 
 function normalizeTag(tag: string): string {
   return tag.trim().toUpperCase().replace(/^#/, "").replace(/O/g, "0");
@@ -24,10 +25,30 @@ function clampBuilderCount(builderCount: number): number {
   return Math.min(MAX_BUILDERS, Math.max(1, Math.floor(builderCount)));
 }
 
+function sameStringArray(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+function readSkipDraft(key: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(`${SKIP_DRAFT_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { draft?: unknown };
+    return Array.isArray(parsed.draft) &&
+      parsed.draft.every((v) => typeof v === "string")
+      ? parsed.draft
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Home() {
   const fetchPlayer = useAction(api.players.fetchPlayer);
   const importVillageData = useMutation(api.players.importVillageData);
   const saveCurrentAccount = useMutation(api.accounts.saveCurrentAccount);
+  const renameAccount = useMutation(api.accounts.renameAccount);
+  const deleteAccount = useMutation(api.accounts.deleteAccount);
   const updateAccountSettings = useMutation(
     api.accounts.updateAccountSettings
   ).withOptimisticUpdate((store, args) => {
@@ -112,12 +133,21 @@ export default function Home() {
     Id<"cocAccounts"> | null | undefined
   >(undefined);
   const [savingAccount, setSavingAccount] = useState(false);
+  const [editingAccountId, setEditingAccountId] =
+    useState<Id<"cocAccounts"> | null>(null);
+  const [editAccountName, setEditAccountName] = useState("");
+  const [renamingAccount, setRenamingAccount] = useState(false);
+  const [deleteAccountId, setDeleteAccountId] =
+    useState<Id<"cocAccounts"> | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [village, setVillage] = useState<VillageExport | null>(null);
   const [apiUpdatedAt, setApiUpdatedAt] = useState<number | null>(null);
-  const [builderCount, setBuilderCount] = useState(6);
+  const [builderCount, setBuilderCount] = useState(5);
   const [goldPass, setGoldPass] = useState(false);
   const [skips, setSkips] = useState<string[]>([]);
+  const [draftSkips, setDraftSkips] = useState<string[] | null>(null);
+  const [skipDraftBase, setSkipDraftBase] = useState<string[]>([]);
   const [skipMode, setSkipMode] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -142,6 +172,9 @@ export default function Home() {
       ? (accounts?.[0]?._id ?? null)
       : (selectedAccount?._id ?? null)
     : null;
+  const effectiveSelectedAccount = accounts?.find(
+    (account) => account._id === effectiveSelectedAccountId
+  );
   const accountData = useQuery(
     api.accounts.getAccountData,
     effectiveSelectedAccountId ? { accountId: effectiveSelectedAccountId } : "skip"
@@ -150,6 +183,36 @@ export default function Home() {
     isAuthenticated &&
     effectiveSelectedAccountId !== null &&
     accountData === undefined;
+  // While an account is active, the tag field is locked; users switch the
+  // account selector to "Tag lookup" to look something else up.
+  const lookupLocked = Boolean(effectiveSelectedAccountId);
+  const skipDraftKey = effectiveSelectedAccountId
+    ? `account:${effectiveSelectedAccountId}`
+    : `tag:${normalizeTag(player?.tag ?? tag)}`;
+  const activeSkips = skipMode && draftSkips ? draftSkips : skips;
+  const skipDraftDirty =
+    draftSkips !== null && !sameStringArray(draftSkips, skipDraftBase);
+  const playerAccountExists =
+    !!player &&
+    !!accounts?.some(
+      (account) => normalizeTag(account.tag) === normalizeTag(player.tag)
+    );
+  const canSaveCurrentAccount =
+    isAuthenticated &&
+    !lookupLocked &&
+    !!player &&
+    !playerAccountExists &&
+    !savingAccount;
+  const deleteAccountTarget =
+    accounts?.find((account) => account._id === deleteAccountId) ?? null;
+
+  function clearSkipDraft(key = skipDraftKey) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(`${SKIP_DRAFT_PREFIX}${key}`);
+    }
+    setDraftSkips(null);
+    setSkipDraftBase([]);
+  }
 
   useEffect(() => {
     if (!accountData) return;
@@ -158,9 +221,10 @@ export default function Home() {
     hydratedAccountIdRef.current = accountData.account._id;
     queueMicrotask(() => {
       setTag(accountData.account.tag);
-      setBuilderCount(clampBuilderCount(accountData.account.builderCount ?? 6));
+      setBuilderCount(clampBuilderCount(accountData.account.builderCount ?? 5));
       setGoldPass(accountData.account.goldPass ?? false);
       setSkips(accountData.account.skips ?? []);
+      setSkipMode(false);
       if (accountData.apiSnapshot?.raw) {
         setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
         setApiUpdatedAt(accountData.apiSnapshot.fetchedAt);
@@ -198,7 +262,15 @@ export default function Home() {
         setImportSuccess(null);
       }
     });
-  }, [accountData]);
+  }, [accountData, fetchPlayer]);
+
+  useEffect(() => {
+    if (!skipMode || draftSkips === null) return;
+    localStorage.setItem(
+      `${SKIP_DRAFT_PREFIX}${skipDraftKey}`,
+      JSON.stringify({ base: skipDraftBase, draft: draftSkips })
+    );
+  }, [draftSkips, skipDraftBase, skipDraftKey, skipMode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,7 +342,7 @@ export default function Home() {
   }
 
   async function handleSaveAccount() {
-    if (!player) return;
+    if (!player || playerAccountExists) return;
     setSavingAccount(true);
     setError(null);
     try {
@@ -292,6 +364,9 @@ export default function Home() {
   function handleSelectAccount(accountId: Id<"cocAccounts"> | null) {
     hydratedAccountIdRef.current = null;
     setSelectedAccountId(accountId);
+    setEditingAccountId(null);
+    setDeleteAccountId(null);
+    clearSkipDraft();
     if (!accountId) {
       setSkips([]);
       setSkipMode(false);
@@ -302,7 +377,7 @@ export default function Home() {
     if (!account) return;
 
     setTag(account.tag);
-    setBuilderCount(clampBuilderCount(account.builderCount ?? 6));
+    setBuilderCount(clampBuilderCount(account.builderCount ?? 5));
     setGoldPass(account.goldPass ?? false);
     setSkips(account.skips ?? []);
     setSkipMode(false);
@@ -310,6 +385,47 @@ export default function Home() {
     setApiUpdatedAt(null);
     setVillage(null);
     setImportSuccess(null);
+  }
+
+  function handleStartEditAccount() {
+    if (!effectiveSelectedAccount) return;
+    setEditingAccountId(effectiveSelectedAccount._id);
+    setEditAccountName(effectiveSelectedAccount.name);
+  }
+
+  async function handleRenameAccount() {
+    if (!editingAccountId) return;
+    setRenamingAccount(true);
+    setError(null);
+    try {
+      await renameAccount({
+        accountId: editingAccountId,
+        name: editAccountName,
+      });
+      setEditingAccountId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename account.");
+    } finally {
+      setRenamingAccount(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!deleteAccountId) return;
+    setDeletingAccount(true);
+    setError(null);
+    try {
+      const remainingAccounts =
+        accounts?.filter((account) => account._id !== deleteAccountId) ?? [];
+      await deleteAccount({ accountId: deleteAccountId });
+      setDeleteAccountId(null);
+      setEditingAccountId(null);
+      handleSelectAccount(remainingAccounts[0]?._id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete account.");
+    } finally {
+      setDeletingAccount(false);
+    }
   }
 
   function persistAccountSettings(nextBuilderCount: number, nextGoldPass: boolean) {
@@ -333,7 +449,13 @@ export default function Home() {
   }
 
   function handleSetSkipCount(key: string, nextCount: number, maxCount: number) {
-    const nextSkips = setSkipCount(skips, key, nextCount, maxCount);
+    const baseSkips = skipMode ? (draftSkips ?? skips) : skips;
+    const nextSkips = setSkipCount(baseSkips, key, nextCount, maxCount);
+    if (skipMode) {
+      setDraftSkips(nextSkips);
+      return;
+    }
+
     setSkips(nextSkips);
     if (!effectiveSelectedAccountId) return;
     void updateAccountSkips({
@@ -342,15 +464,39 @@ export default function Home() {
     });
   }
 
+  function handleEnterSkipMode() {
+    const recovered =
+      typeof window === "undefined" ? null : readSkipDraft(skipDraftKey);
+    setSkipDraftBase(skips);
+    setDraftSkips(recovered ?? skips);
+    setSkipMode(true);
+  }
+
+  function handleSaveSkips() {
+    const nextSkips = draftSkips ?? skips;
+    setSkips(nextSkips);
+    clearSkipDraft();
+    setSkipMode(false);
+    if (!effectiveSelectedAccountId) return;
+    void updateAccountSkips({
+      accountId: effectiveSelectedAccountId,
+      skips: nextSkips,
+    });
+  }
+
+  function handleDiscardSkipDraft() {
+    clearSkipDraft();
+    setSkipMode(false);
+  }
+
   const stats = player ? buildVillageStats(player) : null;
   const hasData = stats || village;
-  // While an account is active, the tag field is locked; users switch the
-  // account selector to "Tag lookup" to look something else up.
-  const lookupLocked = Boolean(effectiveSelectedAccountId);
-  const overviewName = player?.name ?? selectedAccount?.name ?? null;
-  const overviewTag = player?.tag ?? selectedAccount?.tag ?? null;
+  const overviewName = player?.name ?? effectiveSelectedAccount?.name ?? null;
+  const overviewTag = player?.tag ?? effectiveSelectedAccount?.tag ?? null;
   const overviewTownHallLevel =
-    selectedAccount && !stats && !village ? selectedAccount.townHallLevel : null;
+    effectiveSelectedAccount && !stats && !village
+      ? effectiveSelectedAccount.townHallLevel
+      : null;
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-12 dark:bg-black">
@@ -380,9 +526,18 @@ export default function Home() {
                   : selectedAccountId
               }
               onSelectAccount={handleSelectAccount}
-              onSaveCurrent={() => void handleSaveAccount()}
-              saveDisabled={!player}
-              saving={savingAccount}
+              editingAccountId={editingAccountId}
+              editAccountName={editAccountName}
+              onStartEditAccount={handleStartEditAccount}
+              onEditAccountName={setEditAccountName}
+              onRenameAccount={() => void handleRenameAccount()}
+              onCancelEditAccount={() => setEditingAccountId(null)}
+              onRequestDeleteAccount={() => {
+                if (effectiveSelectedAccountId) {
+                  setDeleteAccountId(effectiveSelectedAccountId);
+                }
+              }}
+              renaming={renamingAccount}
             />
           ) : (
             <AuthPanel />
@@ -396,9 +551,10 @@ export default function Home() {
                   setTag(e.target.value);
                   setSelectedAccountId(null);
                   setSkips([]);
+                  clearSkipDraft();
                   setSkipMode(false);
                 }}
-                placeholder="#PLAYERTAG"
+                placeholder="#PLAYER_TAG"
                 spellCheck={false}
                 disabled={lookupLocked}
                 className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
@@ -425,6 +581,21 @@ export default function Home() {
                   another player.
                 </p>
               )
+            )}
+
+            {isAuthenticated && !lookupLocked && (
+              <button
+                type="button"
+                onClick={() => void handleSaveAccount()}
+                disabled={!canSaveCurrentAccount}
+                className="mt-3 w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              >
+                {savingAccount
+                  ? "Saving..."
+                  : playerAccountExists
+                    ? "Account already saved"
+                    : "Save current as account"}
+              </button>
             )}
           </div>
 
@@ -473,6 +644,39 @@ export default function Home() {
           </div>
         )}
 
+        {deleteAccountTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                Delete account?
+              </h2>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                This will remove {deleteAccountTarget.name} (
+                <span className="font-mono">{deleteAccountTarget.tag}</span>) and
+                its saved snapshots.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteAccountId(null)}
+                  disabled={deletingAccount}
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={deletingAccount}
+                  className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deletingAccount ? "Deleting..." : "Delete Account"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {(hasData || snapshotsLoading) && (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <Overview
@@ -482,21 +686,26 @@ export default function Home() {
               loading={snapshotsLoading}
               stats={stats}
               village={village}
-              skips={skips}
+              activeSkips={activeSkips}
               skipMode={skipMode}
-              onSetSkipCount={handleSetSkipCount}
-            />
-            <TimingPanel
               builderCount={builderCount}
               onBuilderCount={handleBuilderCount}
               goldPass={goldPass}
               onGoldPass={handleGoldPass}
+              maxBuilderCount={MAX_BUILDERS}
+              onEnterSkipMode={handleEnterSkipMode}
+              onSaveSkips={handleSaveSkips}
+              onDiscardSkipDraft={handleDiscardSkipDraft}
+              skipDraftDirty={skipDraftDirty}
+              onSetSkipCount={handleSetSkipCount}
+            />
+            <TimingPanel
+              builderCount={builderCount}
+              goldPass={goldPass}
               loading={snapshotsLoading}
               stats={stats}
               village={village}
-              skips={skips}
-              skipMode={skipMode}
-              onSkipMode={setSkipMode}
+              skips={activeSkips}
             />
           </div>
         )}

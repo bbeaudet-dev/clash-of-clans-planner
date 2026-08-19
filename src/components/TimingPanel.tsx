@@ -18,7 +18,6 @@ import { CompletionCard } from "@/components/timing/CompletionCard";
 import { CountBadge } from "@/components/timing/CountBadge";
 import { TrackCard } from "@/components/timing/TrackCard";
 
-const MAX_BUILDERS = 7;
 const BOTTLENECK_THRESHOLD_SECONDS = 5 * 24 * 60 * 60;
 
 function rushColor(seconds: number): string {
@@ -58,26 +57,18 @@ function UpgradeList({ items }: { items: InProgressUpgrade[] }) {
 
 export function TimingPanel({
   builderCount,
-  onBuilderCount,
   goldPass,
-  onGoldPass,
   loading = false,
   stats,
   village,
   skips,
-  skipMode,
-  onSkipMode,
 }: {
   builderCount: number;
-  onBuilderCount: (n: number) => void;
   goldPass: boolean;
-  onGoldPass: (v: boolean) => void;
   loading?: boolean;
   stats: VillageStats | null;
   village: VillageExport | null;
   skips: string[];
-  skipMode: boolean;
-  onSkipMode: (enabled: boolean) => void;
 }) {
   const townHallLevel = stats?.townHallLevel ?? village?.townHallLevel ?? 0;
   const allTracks = computeTracks(
@@ -123,54 +114,11 @@ export function TimingPanel({
       : null;
 
   return (
-    <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:h-fit">
+    <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-1">
       <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Town Hall Completion
         </h2>
-
-        <div className="mt-3 flex items-center justify-between gap-4 text-sm text-zinc-700 dark:text-zinc-300">
-          <label className="flex items-center gap-2">
-            Builders
-            <input
-              type="number"
-              min={1}
-              max={MAX_BUILDERS}
-              value={builderCount}
-              onChange={(e) =>
-                onBuilderCount(
-                  Math.min(MAX_BUILDERS, Math.max(1, Number(e.target.value) || 1))
-                )
-              }
-              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            />
-          </label>
-
-          <label className="flex cursor-pointer items-center gap-2">
-            Gold Pass
-            <input
-              type="checkbox"
-              checked={goldPass}
-              onChange={(e) => onGoldPass(e.target.checked)}
-              className="h-4 w-4 accent-amber-500"
-            />
-          </label>
-        </div>
-
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => onSkipMode(!skipMode)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-              skipMode
-                ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <SkipIcon className="h-3.5 w-3.5 text-amber-500" />
-            {skipMode ? "Exit Skip Mode" : "Skip Mode"}
-          </button>
-        </div>
 
         {!loading && (stats || village) && (
           <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
@@ -287,7 +235,7 @@ export function TimingPanel({
                 primary={`${wallMetric.pctComplete}%`}
                 secondary={`${wallMetric.maxedWalls} / ${wallMetric.totalWalls} maxed`}
               >
-                <span className="flex flex-wrap items-center gap-1.5">
+                <span className="flex flex-wrap items-center gap-1">
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClass(wallMetric.status)}`}
                   >
@@ -315,9 +263,9 @@ export function TimingPanel({
                 primary={`${equipmentMetric.pct}%`}
                 secondary={`${equipmentMetric.done} / ${equipmentMetric.total} levels`}
               >
-                <span className="flex flex-wrap items-center gap-1.5">
+                <span className="flex flex-wrap items-center gap-1">
                   {equipmentMetric.skippedLevels > 0 && (
-                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-px font-mono text-[11px] text-amber-600 dark:text-amber-400">
                       {equipmentMetric.skippedLevels}
                       <SkipIcon className="h-3 w-3" />
                     </span>
