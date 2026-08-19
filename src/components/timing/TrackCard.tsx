@@ -28,6 +28,7 @@ export function TrackCard({
       : track.finishSeconds;
   const criticalPath = track.criticalPathSeconds ?? 0;
   const criticalLimited = criticalPath > distributedFinish;
+  const showCriticalPath = track.key === "builder" && criticalPath > 0;
   const showDetailRow = !done || track.skippedLevels > 0;
   const countBadges = (
     <span className="inline-flex items-center gap-1.5 align-middle">
@@ -74,10 +75,22 @@ export function TrackCard({
         <div className="mt-0.5 flex items-baseline justify-between text-xs text-zinc-500 dark:text-zinc-400">
           <span className="inline-flex items-center gap-1">
             {countBadges}
-            {track.parallel > 1
-              ? ` · ${formatDuration(track.workSeconds)} ÷ ${track.parallel}`
-              : ""}
-            {criticalLimited ? ` · max item ${formatDuration(criticalPath)}` : ""}
+            {track.parallel > 1 && (
+              <span>
+                · {formatDuration(track.workSeconds)} ÷ {track.parallel}
+              </span>
+            )}
+            {showCriticalPath && (
+              <span
+                className={
+                  criticalLimited
+                    ? "font-medium text-amber-600 dark:text-amber-400"
+                    : undefined
+                }
+              >
+                · max item {formatDuration(criticalPath)}
+              </span>
+            )}
           </span>
           {!done && <span>done ~ {finishDate(track.finishSeconds)}</span>}
         </div>

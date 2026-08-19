@@ -112,6 +112,8 @@ export function TimingPanel({
     townHallLevel === 0 || townHallLevel >= CATEGORY_UNLOCK_TH.equipment
       ? computeEquipmentMetric(stats, skips)
       : null;
+  const nextTownHallLabel =
+    townHallLevel > 0 ? `TH${townHallLevel + 1}` : "next Town Hall";
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-1">
@@ -121,13 +123,13 @@ export function TimingPanel({
         </h2>
 
         {!loading && (stats || village) && (
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-3 items-end gap-2">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-zinc-400">
                 Maxed
               </p>
               <p
-                className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100"
+                className="font-mono text-3xl font-semibold leading-none text-zinc-900 dark:text-zinc-100"
                 title="Progress through this Town Hall's new upgrades (previous TH cap to current TH cap)"
               >
                 {summary.pctToMax}%
@@ -138,7 +140,7 @@ export function TimingPanel({
                 Rushed
               </p>
               <p
-                className={`font-mono text-base font-semibold ${rushColor(summary.rushedSeconds)}`}
+                className={`font-mono text-base font-semibold leading-none ${rushColor(summary.rushedSeconds)}`}
                 title="Total upgrade time still owed below the previous Town Hall's caps"
               >
                 {summary.rushedSeconds > 0
@@ -150,7 +152,7 @@ export function TimingPanel({
               <p className="text-[10px] uppercase tracking-wide text-zinc-400">
                 Skipped
               </p>
-              <p className="inline-flex items-center font-mono text-base font-semibold text-amber-600 dark:text-amber-400">
+              <p className="inline-flex items-center font-mono text-base font-semibold leading-none text-amber-600 dark:text-amber-400">
                 {totalSkipped}
                 <SkipIcon className="h-4 w-4" />
               </p>
@@ -169,7 +171,7 @@ export function TimingPanel({
               {formatDuration(slowestTrack.finishSeconds)}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              until fully maxed
+              until {nextTownHallLabel}
             </span>
             {balanced && (
               <span
