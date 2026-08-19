@@ -404,10 +404,15 @@ export default function Home() {
       <main className="w-full max-w-6xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Clash of Clans Planner
+            Town Hall Completion Tool{" "}
+            <span className="block text-xl font-semibold text-violet-600 dark:text-violet-400 sm:inline sm:text-2xl">
+              for Clash of Clans
+            </span>
           </h1>
           <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-            Look up your army by tag, and import your village data for defenses.
+            How close is your base to max? How rushed are you? Calculate these
+            and make a plan for pushing to the next Town Hall level with this
+            tool.
           </p>
         </header>
 

@@ -35,7 +35,7 @@ export function VillageImportPanel({
       >
         <StepHelpTooltip label="Why village data import is needed">
           <p>
-            This JSON is the full snapshot of your base that isn't publicly visible (for reasons like competitive planning and clan wars) and includes building, trap,
+            This JSON is the full snapshot of your base that is not publicly visible (for reasons like competitive planning and clan wars) and includes building, trap,
             collector, wall, and active upgrade details.
           </p>
           <p className="mt-2">
