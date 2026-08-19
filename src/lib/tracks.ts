@@ -22,6 +22,8 @@ export interface TrackSub {
   label: string;
   seconds: number;
   levels: number;
+  /** False when this sub's data source isn't loaded yet (e.g. no village import). */
+  available: boolean;
 }
 
 export interface Track {
@@ -294,24 +296,24 @@ export function computeTracks(
     }
   }
 
-  // Show every applicable sub-group (even maxed/0), but only ones whose data
-  // source is loaded: heroes need the army lookup, buildings need the export.
+  // Always list every sub-group (even maxed/0 or not-yet-loaded). Subs whose
+  // data source isn't loaded (heroes need the army lookup, buildings need the
+  // export) are flagged unavailable so the UI can prompt for an import.
   const orderedSubs = (
     t: TrackKey,
     order: { key: string; label: string }[],
     available: (key: string) => boolean
   ): TrackSub[] =>
-    order
-      .filter(({ key }) => available(key))
-      .map(({ key, label }) => {
-        const b = subs[t].get(key);
-        return {
-          key,
-          label,
-          seconds: b ? secondsOf(b) : 0,
-          levels: b?.levels ?? 0,
-        };
-      });
+    order.map(({ key, label }) => {
+      const b = subs[t].get(key);
+      return {
+        key,
+        label,
+        seconds: b ? secondsOf(b) : 0,
+        levels: b?.levels ?? 0,
+        available: available(key),
+      };
+    });
 
   const hasArmy = stats !== null;
   const hasVillage = village !== null;

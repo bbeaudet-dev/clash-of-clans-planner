@@ -87,11 +87,15 @@ function TrackCard({
           {track.subs.map((s) => (
             <li
               key={s.key}
-              className="flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400"
+              className={`flex items-baseline justify-between text-[11px] ${
+                s.available
+                  ? "text-zinc-500 dark:text-zinc-400"
+                  : "text-zinc-400 dark:text-zinc-600"
+              }`}
             >
               <span>
                 {s.label}
-                {s.levels > 0 && (
+                {s.available && s.levels > 0 && (
                   <span className="text-zinc-400 dark:text-zinc-600">
                     {" "}
                     ({s.levels})
@@ -99,7 +103,9 @@ function TrackCard({
                 )}
               </span>
               <span className="font-mono">
-                {s.levels === 0 ? (
+                {!s.available ? (
+                  <span className="italic">import data</span>
+                ) : s.levels === 0 ? (
                   <span className="text-emerald-600 dark:text-emerald-400">
                     maxed
                   </span>
@@ -211,7 +217,9 @@ export function TimingPanel({
               className="h-4 w-4 accent-amber-500"
             />
           </label>
+        </div>
 
+        <div className="mt-2">
           <button
             type="button"
             onClick={() => onSkipMode(!skipMode)}
