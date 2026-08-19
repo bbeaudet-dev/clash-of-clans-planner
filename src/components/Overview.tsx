@@ -41,13 +41,21 @@ function rushColor(seconds: number): string {
   return "text-red-600 dark:text-red-400";
 }
 
-function Bar({ pct, maxed }: { pct: number; maxed: boolean }) {
+function Bar({
+  pct,
+  maxed,
+  active = false,
+}: {
+  pct: number;
+  maxed: boolean;
+  /** Currently being upgraded — shown in blue regardless of progress. */
+  active?: boolean;
+}) {
+  const color = active ? "bg-sky-400" : maxed ? "bg-emerald-500" : "bg-amber-500";
   return (
     <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
       <div
-        className={`h-full rounded-full ${
-          maxed ? "bg-emerald-500" : "bg-amber-500"
-        }`}
+        className={`h-full rounded-full ${color}`}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -59,11 +67,13 @@ function ArmyRow({
   skipMode,
   skipped,
   onToggleSkip,
+  active = false,
 }: {
   row: StatRow;
   skipMode: boolean;
   skipped: boolean;
   onToggleSkip?: () => void;
+  active?: boolean;
 }) {
   const isMaxed = row.thMax !== null && row.level >= row.thMax;
   const pct =
@@ -124,7 +134,7 @@ function ArmyRow({
           </span>
         </span>
       </div>
-      <Bar pct={pct} maxed={isMaxed} />
+      <Bar pct={pct} maxed={isMaxed} active={active && !isMaxed} />
       <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
         {showPrev && <span>prev {row.prevThMax}</span>}
         {row.thMax !== null && (
@@ -147,11 +157,13 @@ function BuildingRowItem({
   skipMode,
   skipped,
   onToggleSkip,
+  active = false,
 }: {
   row: BuildingRow;
   skipMode: boolean;
   skipped: boolean;
   onToggleSkip?: () => void;
+  active?: boolean;
 }) {
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
   const multiple = row.total > 1;
@@ -243,7 +255,7 @@ function BuildingRowItem({
           </span>
         </span>
       </div>
-      <Bar pct={pct} maxed={isMaxed} />
+      <Bar pct={pct} maxed={isMaxed} active={active && !isMaxed} />
       {(!isMaxed || multiple) && (
         <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
           {!isMaxed && (
@@ -354,6 +366,8 @@ export function Overview({
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
   const skipSet = new Set(skips);
+  // Names of items with a live upgrade timer, so their bars show as "active".
+  const inProgressNames = new Set(village?.inProgress.map((u) => u.name) ?? []);
 
   const armyGroup = (c: Category) =>
     stats?.groups.find((g) => g.category === c) ?? null;
@@ -383,6 +397,7 @@ export function Overview({
               skipMode={skipMode}
               skipped={skippable && skipSet.has(key)}
               onToggleSkip={skippable ? () => onToggleSkip(key) : undefined}
+              active={inProgressNames.has(row.name)}
             />
           );
         })}
@@ -482,15 +497,16 @@ export function Overview({
                   const skippable = category !== "helper" && row.cap !== null;
                   const key = buildingSkipKey(row);
                   return (
-                    <BuildingRowItem
-                      key={row.id}
-                      row={row}
-                      skipMode={skipMode}
-                      skipped={skippable && skipSet.has(key)}
-                      onToggleSkip={
-                        skippable ? () => onToggleSkip(key) : undefined
-                      }
-                    />
+                  <BuildingRowItem
+                    key={row.id}
+                    row={row}
+                    skipMode={skipMode}
+                    skipped={skippable && skipSet.has(key)}
+                    onToggleSkip={
+                      skippable ? () => onToggleSkip(key) : undefined
+                    }
+                    active={inProgressNames.has(row.name)}
+                  />
                   );
                 })}
               </SectionCard>
