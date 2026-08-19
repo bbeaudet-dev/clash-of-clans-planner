@@ -37,14 +37,8 @@ export function TagLookupPanel({
       >
         <StepHelpTooltip label="What player tag lookup can access">
           <p>
-            Player tags let us look up public Clash of Clans profile data
-            through RoyaleAPI, including your name, Town Hall, heroes, troops,
-            spells, siege machines, pets, and hero equipment.
-          </p>
-          <p className="mt-2">
-            Public tag lookup does not include private base details like exact
-            building, trap, collector, or wall levels. That is why Step 2 is
-            needed for a full base analysis.
+            RoyaleAPI enables us to see your Town Hall, heroes, troops,
+            spells, siege machines, pets, and hero equipment - all from your player tag.
           </p>
         </StepHelpTooltip>
       </OnboardingStepHeader>

@@ -35,10 +35,8 @@ export function VillageImportPanel({
       >
         <StepHelpTooltip label="Why village data import is needed">
           <p>
-            The public player tag lookup does not include your private base
-            layout progress. The village JSON gives us building, trap,
-            collector, wall, and active upgrade details needed for accurate
-            builder timing and completion analysis.
+            This JSON is the full snapshot of your base that isn't publicly visible (for reasons like competitive planning and clan wars) and includes building, trap,
+            collector, wall, and active upgrade details.
           </p>
           <p className="mt-2">
             Copy it in-game from <strong>Settings</strong> -{" "}
