@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
+import { StepHelpTooltip } from "@/components/StepHelpTooltip";
 
 export function TagLookupPanel({
   tag,
@@ -33,7 +34,20 @@ export function TagLookupPanel({
       <OnboardingStepHeader
         step="Step 1"
         title="Enter your player tag"
-      />
+      >
+        <StepHelpTooltip label="What player tag lookup can access">
+          <p>
+            Player tags let us look up public Clash of Clans profile data
+            through RoyaleAPI, including your name, Town Hall, heroes, troops,
+            spells, siege machines, pets, and hero equipment.
+          </p>
+          <p className="mt-2">
+            Public tag lookup does not include private base details like exact
+            building, trap, collector, or wall levels. That is why Step 2 is
+            needed for a full base analysis.
+          </p>
+        </StepHelpTooltip>
+      </OnboardingStepHeader>
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           value={tag}

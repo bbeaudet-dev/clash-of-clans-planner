@@ -1,5 +1,7 @@
 import type { ChangeEvent, RefObject } from "react";
+import Link from "next/link";
 import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
+import { StepHelpTooltip } from "@/components/StepHelpTooltip";
 import { VillageExport } from "@/lib/villageExport";
 
 export function VillageImportPanel({
@@ -31,34 +33,28 @@ export function VillageImportPanel({
         step="Step 2"
         title="Copy/paste your village data JSON from Settings"
       >
-        <div className="group relative shrink-0">
-          <button
-            type="button"
-            aria-label="How to copy village data"
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-xs font-bold text-amber-700 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-          >
-            ?
-          </button>
-          <div className="invisible absolute right-0 z-20 mt-2 w-72 rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-relaxed text-zinc-600 opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-            <p>
-              Some village data is private and can be accessed through in-game{" "}
-              <strong>Settings</strong> - <strong>More settings</strong> -{" "}
-              <strong>Copy village data JSON</strong>.
-            </p>
-            <p className="mt-2">
-              You will need to repeat this step when you want an updated
-              analysis, but the snapshot still gives useful planning insights.
-              We do not share this private info. See the{" "}
-              <a
-                href="/privacy"
-                className="font-medium text-sky-600 hover:underline dark:text-sky-400"
-              >
-                Privacy Policy
-              </a>{" "}
-              for more.
-            </p>
-          </div>
-        </div>
+        <StepHelpTooltip label="Why village data import is needed">
+          <p>
+            The public player tag lookup does not include your private base
+            layout progress. The village JSON gives us building, trap,
+            collector, wall, and active upgrade details needed for accurate
+            builder timing and completion analysis.
+          </p>
+          <p className="mt-2">
+            Copy it in-game from <strong>Settings</strong> -{" "}
+            <strong>More settings</strong> -{" "}
+            <strong>Copy village data JSON</strong>. You will need to repeat
+            this when you want a fresh snapshot. We do not share this private
+            info; see the{" "}
+            <Link
+              href="/privacy"
+              className="font-medium text-sky-600 hover:underline dark:text-sky-400"
+            >
+              Privacy Policy
+            </Link>{" "}
+            for more.
+          </p>
+        </StepHelpTooltip>
       </OnboardingStepHeader>
       <button
         type="button"

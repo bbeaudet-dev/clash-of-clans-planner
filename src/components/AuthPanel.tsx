@@ -56,7 +56,7 @@ export function AuthPanel({ onBeforeAuth }: { onBeforeAuth?: () => void }) {
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
       <OnboardingStepHeader
         step="Step 3"
-        title="Save your accounts to come back anytime"
+        title="Return to your accounts anytime"
       />
       <div className="mt-3 grid gap-2">
         <button
