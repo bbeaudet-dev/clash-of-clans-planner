@@ -10,6 +10,7 @@ import { AuthPanel } from "@/components/AuthPanel";
 import { Overview } from "@/components/Overview";
 import { TimingPanel } from "@/components/TimingPanel";
 import { UserMenu } from "@/components/UserMenu";
+import { setSkipCount } from "@/lib/tracks";
 
 const DEFAULT_TAG = "#Q8JJJ2UP";
 const MAX_BUILDERS = 7;
@@ -330,10 +331,8 @@ export default function Home() {
     persistAccountSettings(builderCount, nextGoldPass);
   }
 
-  function handleToggleSkip(key: string) {
-    const nextSkips = skips.includes(key)
-      ? skips.filter((skip) => skip !== key)
-      : [...skips, key];
+  function handleSetSkipCount(key: string, nextCount: number, maxCount: number) {
+    const nextSkips = setSkipCount(skips, key, nextCount, maxCount);
     setSkips(nextSkips);
     if (!effectiveSelectedAccountId) return;
     void updateAccountSkips({
@@ -541,7 +540,7 @@ export default function Home() {
               village={village}
               skips={skips}
               skipMode={skipMode}
-              onToggleSkip={handleToggleSkip}
+              onSetSkipCount={handleSetSkipCount}
             />
             <TimingPanel
               builderCount={builderCount}

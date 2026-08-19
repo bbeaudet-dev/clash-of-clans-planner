@@ -13,10 +13,15 @@ import {
   buildingProgress,
   VillageExport,
 } from "@/lib/villageExport";
-import { computeBaseSummary, formatDuration, pendingUpgrades } from "@/lib/tracks";
+import {
+  buildingSkipCapacity,
+  getSkipCount,
+  pendingUpgrades,
+} from "@/lib/tracks";
 
 const SKIPPABLE_ARMY_CATEGORIES = new Set<Category>([
   "hero",
+  "equipment",
   "pet",
   "troop",
   "siege",
@@ -31,14 +36,42 @@ function buildingSkipKey(row: BuildingRow): string {
   return `building:${row.name}`;
 }
 
-// Rushed thresholds, in days of total upgrade work still owed below the
-// previous TH caps. Below 60d is a light rush, 60–100d moderate, >100d heavy.
-function rushColor(seconds: number): string {
-  const days = seconds / 86400;
-  if (days <= 0) return "text-emerald-600 dark:text-emerald-400";
-  if (days < 60) return "text-yellow-600 dark:text-yellow-400";
-  if (days <= 100) return "text-orange-600 dark:text-orange-400";
-  return "text-red-600 dark:text-red-400";
+function SkipCountControl({
+  value,
+  max,
+  label,
+  onChange,
+}: {
+  value: number;
+  max: number;
+  label: string;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onChange(value - 1)}
+        disabled={value <= 0}
+        aria-label={`Decrease skipped ${label}`}
+        className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
+      >
+        -
+      </button>
+      <span className="min-w-4 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(value + 1)}
+        disabled={value >= max}
+        aria-label={`Increase skipped ${label}`}
+        className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
+      >
+        +
+      </button>
+    </span>
+  );
 }
 
 function Bar({
@@ -65,16 +98,19 @@ function Bar({
 function ArmyRow({
   row,
   skipMode,
-  skipped,
-  onToggleSkip,
+  skipCount,
+  maxSkips,
+  onSkipCount,
   active = false,
 }: {
   row: StatRow;
   skipMode: boolean;
-  skipped: boolean;
-  onToggleSkip?: () => void;
+  skipCount: number;
+  maxSkips: number;
+  onSkipCount?: (next: number) => void;
   active?: boolean;
 }) {
+  const skipped = skipCount > 0;
   const isMaxed = row.thMax !== null && row.level >= row.thMax;
   const pct =
     row.thMax && row.thMax > 0
@@ -102,13 +138,12 @@ function ArmyRow({
     <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
-          {skipMode && onToggleSkip && (
-            <input
-              type="checkbox"
-              checked={skipped}
-              onChange={onToggleSkip}
-              aria-label={`Skip ${row.name}`}
-              className="h-4 w-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
+          {skipMode && onSkipCount && maxSkips > 0 && (
+            <SkipCountControl
+              value={skipCount}
+              max={maxSkips}
+              label={row.name}
+              onChange={onSkipCount}
             />
           )}
           <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -116,7 +151,7 @@ function ArmyRow({
           </span>
           {skipped && (
             <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              skipped
+              {skipCount} skipped
             </span>
           )}
         </span>
@@ -163,17 +198,20 @@ function ArmyRow({
 function BuildingRowItem({
   row,
   skipMode,
-  skipped,
-  onToggleSkip,
+  skipCount,
+  maxSkips,
+  onSkipCount,
   activeCount = 0,
 }: {
   row: BuildingRow;
   skipMode: boolean;
-  skipped: boolean;
-  onToggleSkip?: () => void;
+  skipCount: number;
+  maxSkips: number;
+  onSkipCount?: (next: number) => void;
   /** How many instances of this building are currently upgrading. */
   activeCount?: number;
 }) {
+  const skipped = skipCount > 0;
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
   const multiple = row.total > 1;
 
@@ -223,13 +261,12 @@ function BuildingRowItem({
     <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
-          {skipMode && onToggleSkip && (
-            <input
-              type="checkbox"
-              checked={skipped}
-              onChange={onToggleSkip}
-              aria-label={`Skip ${row.name}`}
-              className="h-4 w-4 shrink-0 accent-zinc-900 dark:accent-zinc-100"
+          {skipMode && onSkipCount && maxSkips > 0 && (
+            <SkipCountControl
+              value={skipCount}
+              max={maxSkips}
+              label={row.name}
+              onChange={onSkipCount}
             />
           )}
           <span
@@ -243,7 +280,7 @@ function BuildingRowItem({
           </span>
           {skipped && (
             <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              skipped
+              {skipCount} skipped
             </span>
           )}
         </span>
@@ -365,7 +402,7 @@ export function Overview({
   village,
   skips,
   skipMode,
-  onToggleSkip,
+  onSetSkipCount,
 }: {
   playerName: string | null;
   playerTag: string | null;
@@ -375,9 +412,8 @@ export function Overview({
   village: VillageExport | null;
   skips: string[];
   skipMode: boolean;
-  onToggleSkip: (key: string) => void;
+  onSetSkipCount: (key: string, nextCount: number, maxCount: number) => void;
 }) {
-  const summary = computeBaseSummary(stats, village);
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
   const skipSet = new Set(skips);
@@ -410,13 +446,20 @@ export function Overview({
         {group?.rows.map((row) => {
           const skippable = SKIPPABLE_ARMY_CATEGORIES.has(category);
           const key = armySkipKey(row);
+          const maxSkips = skippable ? row.remaining : 0;
+          const skipCount = getSkipCount(skipSet, key, maxSkips);
           return (
             <ArmyRow
               key={row.name}
               row={row}
               skipMode={skipMode}
-              skipped={skippable && skipSet.has(key)}
-              onToggleSkip={skippable ? () => onToggleSkip(key) : undefined}
+              skipCount={skipCount}
+              maxSkips={maxSkips}
+              onSkipCount={
+                skippable
+                  ? (next) => onSetSkipCount(key, next, maxSkips)
+                  : undefined
+              }
               active={inProgressCount.has(row.name)}
             />
           );
@@ -447,24 +490,7 @@ export function Overview({
           <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
             Loading account data...
           </span>
-        ) : (
-          <>
-            <span
-              className="text-sm font-semibold text-zinc-700 dark:text-zinc-300"
-              title="Progress through this Town Hall's new upgrades (previous TH cap → current TH cap)"
-            >
-              {summary.pctToMax}% to max
-            </span>
-            <span
-              className={`text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
-              title="Total upgrade time still owed below the previous Town Hall's caps"
-            >
-              {summary.rushedSeconds > 0
-                ? `${formatDuration(summary.rushedSeconds)} rushed`
-                : "0d 0h rushed"}
-            </span>
-          </>
-        )}
+        ) : null}
       </div>
 
       {loading && !stats && !village ? (
@@ -500,14 +526,19 @@ export function Overview({
                 {group?.rows.map((row) => {
                   const skippable = category !== "helper" && row.cap !== null;
                   const key = buildingSkipKey(row);
+                  const maxSkips = skippable ? buildingSkipCapacity(row) : 0;
+                  const skipCount = getSkipCount(skipSet, key, maxSkips);
                   return (
                   <BuildingRowItem
                     key={row.id}
                     row={row}
                     skipMode={skipMode}
-                    skipped={skippable && skipSet.has(key)}
-                    onToggleSkip={
-                      skippable ? () => onToggleSkip(key) : undefined
+                    skipCount={skipCount}
+                    maxSkips={maxSkips}
+                    onSkipCount={
+                      skippable
+                        ? (next) => onSetSkipCount(key, next, maxSkips)
+                        : undefined
                     }
                     activeCount={inProgressCount.get(row.name) ?? 0}
                   />

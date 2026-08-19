@@ -1,11 +1,18 @@
+import type { ReactNode } from "react";
 import { CATEGORY_UNLOCK_TH, VillageStats } from "@/lib/gameData";
+import { CheckIcon, SkipIcon, UpgradeIcon } from "@/components/icons";
 import { InProgressUpgrade, VillageExport } from "@/lib/villageExport";
 import {
+  computeBaseSummary,
+  computeEquipmentMetric,
+  computeSkipSummary,
   computeTracks,
+  computeWallMetric,
   formatDuration,
   itemTrackKey,
   pendingUpgrades,
   Track,
+  WallStatus,
 } from "@/lib/tracks";
 
 const MAX_BUILDERS = 7;
@@ -18,6 +25,76 @@ function finishDate(seconds: number): string {
     day: "numeric",
     year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
   });
+}
+
+function rushColor(seconds: number): string {
+  const days = seconds / 86400;
+  if (days <= 0) return "text-emerald-600 dark:text-emerald-400";
+  if (days < 60) return "text-yellow-600 dark:text-yellow-400";
+  if (days <= 100) return "text-orange-600 dark:text-orange-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+function statusClass(status: WallStatus): string {
+  if (status === "ahead") {
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+  }
+  if (status === "behind") {
+    return "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300";
+  }
+  return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+}
+
+function CountBadge({
+  count,
+  icon,
+  className,
+  title,
+}: {
+  count: number;
+  icon: ReactNode;
+  className: string;
+  title: string;
+}) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 font-mono text-[11px] ${className}`}
+      title={title}
+    >
+      {count}
+      {icon}
+    </span>
+  );
+}
+
+function CompletionCard({
+  title,
+  primary,
+  secondary,
+  children,
+}: {
+  title: string;
+  primary: string;
+  secondary: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {title}
+        </h3>
+        <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {primary}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+        <span>{secondary}</span>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function TrackCard({
@@ -37,11 +114,27 @@ function TrackCard({
       : track.finishSeconds;
   const criticalPath = track.criticalPathSeconds ?? 0;
   const criticalLimited = criticalPath > distributedFinish;
+  const countBadges = (
+    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+      <CountBadge
+        count={track.levels}
+        icon={<UpgradeIcon className="h-3 w-3" />}
+        className="text-emerald-600 dark:text-emerald-400"
+        title="Included upgrade levels"
+      />
+      <CountBadge
+        count={track.skippedLevels}
+        icon={<SkipIcon className="h-3 w-3" />}
+        className="text-amber-600 dark:text-amber-400"
+        title="Skipped upgrade levels"
+      />
+    </span>
+  );
 
   const header = (
     <>
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {expandable && <span className="mr-1 text-zinc-400 transition-transform group-open:rotate-90 inline-block">›</span>}
           {track.label}
           {bottleneck && (
@@ -49,9 +142,14 @@ function TrackCard({
               bottleneck
             </span>
           )}
+          {countBadges}
         </span>
         <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {done ? "maxed" : formatDuration(track.finishSeconds)}
+          {done ? (
+            <CheckIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            formatDuration(track.finishSeconds)
+          )}
         </span>
       </div>
       {!done && (
@@ -97,10 +195,20 @@ function TrackCard({
             >
               <span>
                 {s.label}
-                {s.available && s.levels > 0 && (
-                  <span className="text-zinc-400 dark:text-zinc-600">
-                    {" "}
-                    ({s.levels})
+                {s.available && (
+                  <span className="ml-1 inline-flex items-center gap-1 align-middle">
+                    <CountBadge
+                      count={s.levels}
+                      icon={<UpgradeIcon className="h-3 w-3" />}
+                      className="text-emerald-600 dark:text-emerald-400"
+                      title="Included upgrade levels"
+                    />
+                    <CountBadge
+                      count={s.skippedLevels}
+                      icon={<SkipIcon className="h-3 w-3" />}
+                      className="text-amber-600 dark:text-amber-400"
+                      title="Skipped upgrade levels"
+                    />
                   </span>
                 )}
               </span>
@@ -109,7 +217,7 @@ function TrackCard({
                   <span className="italic">import data</span>
                 ) : s.levels === 0 ? (
                   <span className="text-emerald-600 dark:text-emerald-400">
-                    maxed
+                    <CheckIcon className="h-3.5 w-3.5" />
                   </span>
                 ) : (
                   formatDuration(s.seconds)
@@ -198,12 +306,19 @@ export function TimingPanel({
       : null;
   const builderTrack = tracks.find((t) => t.key === "builder");
   const beginTownHallUpgradeSeconds = builderTrack?.beginTownHallUpgradeSeconds;
+  const summary = computeBaseSummary(stats, village);
+  const totalSkipped = computeSkipSummary(stats, village, skips);
+  const wallMetric = computeWallMetric(village, summary.pctToMax, skips);
+  const equipmentMetric =
+    townHallLevel === 0 || townHallLevel >= CATEGORY_UNLOCK_TH.equipment
+      ? computeEquipmentMetric(stats, skips)
+      : null;
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-8 lg:h-fit">
       <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Time to max
+          Town Hall Completion
         </h2>
 
         <div className="mt-3 flex items-center justify-between gap-4 text-sm text-zinc-700 dark:text-zinc-300">
@@ -238,15 +353,54 @@ export function TimingPanel({
           <button
             type="button"
             onClick={() => onSkipMode(!skipMode)}
-            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
               skipMode
                 ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                 : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
             }`}
           >
-            {skipMode ? "Done" : "Skip Mode"}
+            <SkipIcon className="h-3.5 w-3.5 text-amber-500" />
+            {skipMode ? "Exit Skip Mode" : "Skip Mode"}
           </button>
         </div>
+
+        {!loading && (stats || village) && (
+          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+                Maxed
+              </p>
+              <p
+                className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+                title="Progress through this Town Hall's new upgrades (previous TH cap to current TH cap)"
+              >
+                {summary.pctToMax}%
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+                Rushed
+              </p>
+              <p
+                className={`font-mono text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
+                title="Total upgrade time still owed below the previous Town Hall's caps"
+              >
+                {summary.rushedSeconds > 0
+                  ? formatDuration(summary.rushedSeconds)
+                  : "0d 0h"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+                Skipped
+              </p>
+              <p className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
+                {totalSkipped}
+                <SkipIcon className="h-3.5 w-3.5" />
+              </p>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
@@ -260,7 +414,6 @@ export function TimingPanel({
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               until fully maxed
-              {skips.length > 0 && ` (${skips.length} skipped)`}
             </span>
             {balanced && (
               <span
@@ -316,6 +469,61 @@ export function TimingPanel({
               />
             ))}
           </ul>
+        )}
+
+        {!loading && (wallMetric || equipmentMetric) && (
+          <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+            {wallMetric && (
+              <CompletionCard
+                title="Walls"
+                primary={`${wallMetric.pctComplete}%`}
+                secondary={`${wallMetric.maxedWalls} / ${wallMetric.totalWalls} maxed`}
+              >
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClass(wallMetric.status)}`}
+                  >
+                    {wallMetric.status}
+                  </span>
+                  {wallMetric.catchUpLevels > 0 && (
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                      {wallMetric.catchUpLevels} catch-up
+                    </span>
+                  )}
+                  {wallMetric.skipped && (
+                    <CountBadge
+                      count={1}
+                      icon={<SkipIcon className="h-3 w-3" />}
+                      className="text-amber-600 dark:text-amber-400"
+                      title="Walls skipped"
+                    />
+                  )}
+                </span>
+              </CompletionCard>
+            )}
+            {equipmentMetric && (
+              <CompletionCard
+                title="Hero Equipment"
+                primary={`${equipmentMetric.pct}%`}
+                secondary={`${equipmentMetric.done} / ${equipmentMetric.total} levels`}
+              >
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {equipmentMetric.skippedLevels > 0 && (
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-600 dark:text-amber-400">
+                      {equipmentMetric.skippedLevels}
+                      <SkipIcon className="h-3 w-3" />
+                    </span>
+                  )}
+                  {equipmentMetric.skippedItems > 0 && (
+                    <span className="text-[10px] text-zinc-400">
+                      {equipmentMetric.skippedItems} item
+                      {equipmentMetric.skippedItems === 1 ? "" : "s"} skipped
+                    </span>
+                  )}
+                </span>
+              </CompletionCard>
+            )}
+          </div>
         )}
 
         {!loading && stats && !village && (
