@@ -9,6 +9,7 @@ import {
 } from "@/lib/tracks";
 
 const MAX_BUILDERS = 7;
+const BOTTLENECK_THRESHOLD_SECONDS = 5 * 24 * 60 * 60;
 
 function finishDate(seconds: number): string {
   const d = new Date(Date.now() + seconds * 1000);
@@ -178,10 +179,26 @@ export function TimingPanel({
       townHallLevel >= CATEGORY_UNLOCK_TH.pet
   );
   const active = tracks.filter((t) => t.levels > 0);
-  const bottleneck = active.reduce<Track | null>(
+  const slowestTrack = active.reduce<Track | null>(
     (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),
     null
   );
+  const fastestTrack = active.reduce<Track | null>(
+    (m, t) => (m === null || t.finishSeconds < m.finishSeconds ? t : m),
+    null
+  );
+  const activeSpread =
+    slowestTrack && fastestTrack
+      ? slowestTrack.finishSeconds - fastestTrack.finishSeconds
+      : 0;
+  const balanced =
+    active.length > 1 && activeSpread < BOTTLENECK_THRESHOLD_SECONDS;
+  const bottleneck =
+    slowestTrack &&
+    active.length > 1 &&
+    activeSpread >= BOTTLENECK_THRESHOLD_SECONDS
+      ? slowestTrack
+      : null;
   const builderTrack = tracks.find((t) => t.key === "builder");
   const beginTownHallUpgradeSeconds = builderTrack?.beginTownHallUpgradeSeconds;
 
@@ -239,15 +256,23 @@ export function TimingPanel({
             <div className="h-8 w-28 rounded bg-zinc-200 dark:bg-zinc-800" />
             <div className="mt-2 h-3 w-52 rounded bg-zinc-100 dark:bg-zinc-900" />
           </div>
-        ) : bottleneck ? (
+        ) : slowestTrack ? (
           <div className="mt-3 flex flex-wrap items-baseline gap-x-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {formatDuration(bottleneck.finishSeconds)}
+              {formatDuration(slowestTrack.finishSeconds)}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               until fully maxed
               {skips.length > 0 && ` (${skips.length} skipped)`}
             </span>
+            {balanced && (
+              <span
+                className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                title="All active tracks are within 5 days of each other."
+              >
+                balanced
+              </span>
+            )}
           </div>
         ) : (
           <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-900 dark:text-zinc-400">
