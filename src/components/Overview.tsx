@@ -360,6 +360,36 @@ export function Overview({
   const buildingGroup = (c: string) =>
     village?.groups.find((g) => g.category === c) ?? null;
 
+  const renderArmySection = (category: Category) => {
+    const unlockTH = CATEGORY_UNLOCK_TH[category];
+    // Only show a category once it's unlocked at this TH; not-yet-unlocked
+    // categories (e.g. Pets, Guardians) simply appear when reached.
+    if (townHallLevel > 0 && unlockTH > townHallLevel) return null;
+    const group = armyGroup(category);
+    return (
+      <SectionCard
+        key={`army-${category}`}
+        title={CATEGORY_LABELS[category]}
+        count={group?.rows.length ?? 0}
+        note={group && group.rows.length > 0 ? undefined : "None yet"}
+      >
+        {group?.rows.map((row) => {
+          const skippable = SKIPPABLE_ARMY_CATEGORIES.has(category);
+          const key = armySkipKey(row);
+          return (
+            <ArmyRow
+              key={row.name}
+              row={row}
+              skipMode={skipMode}
+              skipped={skippable && skipSet.has(key)}
+              onToggleSkip={skippable ? () => onToggleSkip(key) : undefined}
+            />
+          );
+        })}
+      </SectionCard>
+    );
+  };
+
   return (
     <div className="w-full" aria-busy={loading}>
       <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -427,37 +457,11 @@ export function Overview({
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2">
-          {CATEGORY_ORDER.map((category) => {
-            const unlockTH = CATEGORY_UNLOCK_TH[category];
-            // Only show a category once it's unlocked at this TH; not-yet-unlocked
-            // categories (e.g. Pets, Guardians) simply appear when reached.
-            if (townHallLevel > 0 && unlockTH > townHallLevel) return null;
-            const group = armyGroup(category);
-            return (
-              <SectionCard
-                key={`army-${category}`}
-                title={CATEGORY_LABELS[category]}
-                count={group?.rows.length ?? 0}
-                note={group && group.rows.length > 0 ? undefined : "None yet"}
-              >
-                {group?.rows.map((row) => {
-                  const skippable = SKIPPABLE_ARMY_CATEGORIES.has(category);
-                  const key = armySkipKey(row);
-                  return (
-                    <ArmyRow
-                      key={row.name}
-                      row={row}
-                      skipMode={skipMode}
-                      skipped={skippable && skipSet.has(key)}
-                      onToggleSkip={
-                        skippable ? () => onToggleSkip(key) : undefined
-                      }
-                    />
-                  );
-                })}
-              </SectionCard>
-            );
-          })}
+          {/* Hero Equipment is rendered last (after buildings); it's ore-upgraded
+              and less of a planning concern than the rest of the army. */}
+          {CATEGORY_ORDER.filter((c) => c !== "equipment").map(
+            renderArmySection
+          )}
 
           {BASE_CATEGORY_ORDER.map((category) => {
             const group = buildingGroup(category);
@@ -492,6 +496,8 @@ export function Overview({
               </SectionCard>
             );
           })}
+
+          {renderArmySection("equipment")}
         </div>
       )}
     </div>

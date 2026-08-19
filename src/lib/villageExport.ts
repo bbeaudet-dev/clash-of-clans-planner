@@ -26,6 +26,13 @@ interface RawExport {
   buildings?: RawEntry[];
   traps?: RawEntry[];
   helpers?: RawEntry[];
+  // Army arrays: levels come from the API, but the export carries their live
+  // upgrade timers (heroes/siege use builders, troops/spells use the lab).
+  units?: RawEntry[];
+  siege_machines?: RawEntry[];
+  heroes?: RawEntry[];
+  spells?: RawEntry[];
+  pets?: RawEntry[];
 }
 
 export interface LevelCount {
@@ -130,8 +137,8 @@ export const BASE_CATEGORY_ORDER = [
   "trap",
   "resource",
   "army",
-  "helper",
   "village",
+  "helper",
 ] as const;
 
 export const BASE_CATEGORY_LABELS: Record<string, string> = {
@@ -190,6 +197,32 @@ export function parseVillageExport(input: string | unknown): VillageExport {
     if (typeof e.lvl !== "number") continue; // skip module-only entries
     add(e.data, e.lvl, e.cnt ?? 1);
     if (typeof e.timer === "number" && e.timer > 0) {
+      const name = idToName[String(e.data)] ?? `#${e.data}`;
+      inProgress.push({
+        name,
+        level: e.lvl,
+        secondsLeft: e.timer,
+        finishesAt: timestamp !== null ? timestamp + e.timer : null,
+      });
+    }
+  }
+
+  // Army upgrades (heroes, troops, spells, siege, pets) each live in their own
+  // array and may carry a live upgrade timer. We surface those timers so the
+  // planner uses the real remaining time (not the full step) and lists them in
+  // "Currently upgrading". Their levels come from the API, so we only read
+  // timers here — not counts.
+  const armyArrays = [
+    raw.heroes,
+    raw.units,
+    raw.siege_machines,
+    raw.spells,
+    raw.pets,
+  ];
+  for (const arr of armyArrays) {
+    for (const e of arr ?? []) {
+      if (typeof e.lvl !== "number") continue;
+      if (typeof e.timer !== "number" || e.timer <= 0) continue;
       const name = idToName[String(e.data)] ?? `#${e.data}`;
       inProgress.push({
         name,

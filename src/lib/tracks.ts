@@ -137,6 +137,23 @@ export function computeTracks(
       b.levels += levels;
     }
   };
+  // Swap a live upgrade's committed step out of the discountable pool and into
+  // the fixed pool (its real remaining timer): the started step can't be sped
+  // up by the Gold Pass, and its actual time-left beats the full step time.
+  const applyInProgress = (
+    t: TrackKey,
+    subKey: string | null,
+    fullStep: number,
+    secondsLeft: number
+  ) => {
+    track[t].disc -= fullStep;
+    track[t].fixed += secondsLeft;
+    if (subKey) {
+      const b = subBucket(t, subKey);
+      b.disc -= fullStep;
+      b.fixed += secondsLeft;
+    }
+  };
   const factor = goldPass ? GOLD_PASS_FACTOR : 1;
   const secondsOf = (b: Bucket): number =>
     Math.max(0, b.disc) * factor + b.fixed;
@@ -235,19 +252,30 @@ export function computeTracks(
       }
     }
 
-    // Replace the current level's full upgrade time with the live in-progress
-    // timer: the committed step is fixed (no discount), the rest stays future.
+    // Replace each live upgrade's current step with its real remaining timer.
+    // Building timers adjust the Builders track; army timers (heroes/siege/
+    // troops/spells/pets) adjust whichever track the API-derived work landed on.
     for (const u of village.inProgress) {
-      if (skips.has(`building:${u.name}`)) continue;
       const cat = getEntity(u.name)?.category;
-      const subKey = cat ? builderSubForCategory(cat) : null;
-      if (!subKey) continue;
+      if (!cat) continue;
       const fullStep = upgradeTime(u.name, u.level, u.level + 1);
-      track.builder.disc -= fullStep;
-      track.builder.fixed += u.secondsLeft;
-      const b = subBucket("builder", subKey);
-      b.disc -= fullStep;
-      b.fixed += u.secondsLeft;
+      const armyTrack = ARMY_TRACK[cat];
+      if (armyTrack) {
+        // Only adjust army work the stats loop actually added.
+        if (!stats || skips.has(`army:${u.name}`)) continue;
+        const subKey =
+          armyTrack === "lab"
+            ? labSubKey(cat, getEntity(u.name)?.resource ?? null)
+            : armyTrack === "builder"
+              ? "hero"
+              : null; // pets have no sub-group
+        applyInProgress(armyTrack, subKey, fullStep, u.secondsLeft);
+      } else {
+        if (skips.has(`building:${u.name}`)) continue;
+        const subKey = builderSubForCategory(cat);
+        if (!subKey) continue; // helper (gold-only, no build time)
+        applyInProgress("builder", subKey, fullStep, u.secondsLeft);
+      }
     }
   }
 
