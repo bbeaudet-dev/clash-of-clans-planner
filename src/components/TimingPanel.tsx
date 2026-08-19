@@ -179,17 +179,14 @@ export function TimingPanel({
       townHallLevel >= CATEGORY_UNLOCK_TH.pet
   );
   const active = tracks.filter((t) => t.levels > 0);
-  const slowestTrack = active.reduce<Track | null>(
-    (m, t) => (m === null || t.finishSeconds > m.finishSeconds ? t : m),
-    null
+  const activeByFinish = [...active].sort(
+    (a, b) => b.finishSeconds - a.finishSeconds
   );
-  const fastestTrack = active.reduce<Track | null>(
-    (m, t) => (m === null || t.finishSeconds < m.finishSeconds ? t : m),
-    null
-  );
+  const slowestTrack = activeByFinish[0] ?? null;
+  const runnerUpTrack = activeByFinish[1] ?? null;
   const activeSpread =
-    slowestTrack && fastestTrack
-      ? slowestTrack.finishSeconds - fastestTrack.finishSeconds
+    slowestTrack && runnerUpTrack
+      ? slowestTrack.finishSeconds - runnerUpTrack.finishSeconds
       : 0;
   const balanced =
     active.length > 1 && activeSpread < BOTTLENECK_THRESHOLD_SECONDS;
@@ -268,7 +265,7 @@ export function TimingPanel({
             {balanced && (
               <span
                 className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                title="All active tracks are within 5 days of each other."
+                title="The slowest active tracks are within 5 days of each other."
               >
                 balanced
               </span>
