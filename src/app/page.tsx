@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAction, useConvexAuth, useMutation } from "convex/react";
+import Link from "next/link";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { ApiPlayer, buildVillageStats } from "@/lib/gameData";
@@ -17,6 +18,11 @@ import { useAccountEditor } from "@/hooks/useAccountEditor";
 import { useAccountMutations } from "@/hooks/useAccountMutations";
 import { useAccountSelection } from "@/hooks/useAccountSelection";
 import { useSkipDrafts } from "@/hooks/useSkipDrafts";
+import {
+  clearPendingOnboarding,
+  readPendingOnboarding,
+  writePendingOnboarding,
+} from "@/lib/pendingOnboarding";
 
 const DEFAULT_TAG = "";
 const MAX_BUILDERS = 7;
@@ -54,12 +60,14 @@ export default function Home() {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [pendingSavePrompt, setPendingSavePrompt] = useState(false);
   const [pending, setPending] = useState<{
     parsed: VillageExport;
     raw: unknown;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hydratedAccountIdRef = useRef<Id<"cocAccounts"> | null>(null);
+  const restoredPendingRef = useRef(false);
 
   const {
     accountData,
@@ -114,7 +122,21 @@ export default function Home() {
     !playerAccountExists &&
     !savingAccount;
 
+  function persistPendingOnboarding() {
+    if (!tag.trim() && !player && !importText.trim()) return;
+    writePendingOnboarding({
+      tag: player?.tag ?? tag,
+      player,
+      apiUpdatedAt,
+      importText,
+      builderCount,
+      goldPass,
+      savedAt: Date.now(),
+    });
+  }
+
   useEffect(() => {
+    if (selectedAccountId === null) return;
     if (!accountData) return;
     if (hydratedAccountIdRef.current === accountData.account._id) return;
 
@@ -162,7 +184,46 @@ export default function Home() {
         setImportSuccess(null);
       }
     });
-  }, [accountData, fetchPlayer, setSkipMode]);
+  }, [accountData, fetchPlayer, selectedAccountId, setSkipMode]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || restoredPendingRef.current) return;
+    const pendingOnboarding = readPendingOnboarding();
+    if (!pendingOnboarding) return;
+
+    restoredPendingRef.current = true;
+    clearPendingOnboarding();
+    queueMicrotask(() => {
+      hydratedAccountIdRef.current = null;
+      setSelectedAccountId(null);
+      setTag(pendingOnboarding.tag);
+      setBuilderCount(clampBuilderCount(pendingOnboarding.builderCount));
+      setGoldPass(pendingOnboarding.goldPass);
+      if (pendingOnboarding.player) {
+        setPlayer(pendingOnboarding.player);
+        setApiUpdatedAt(pendingOnboarding.apiUpdatedAt ?? Date.now());
+        setPendingSavePrompt(true);
+      }
+      if (pendingOnboarding.importText.trim()) {
+        setImportText(pendingOnboarding.importText);
+        try {
+          const raw = JSON.parse(pendingOnboarding.importText);
+          const parsed = parseVillageExport(raw);
+          setVillage(parsed);
+          const asOf = parsed.timestamp
+            ? new Date(parsed.timestamp * 1000).toLocaleString()
+            : new Date(pendingOnboarding.savedAt).toLocaleString();
+          setImportSuccess(`Restored import: ${asOf}`);
+          setImportOpen(false);
+        } catch {
+          setImportError(
+            "Sign-in restored your pasted JSON, but it needs re-importing."
+          );
+          setImportOpen(true);
+        }
+      }
+    });
+  }, [authLoading, isAuthenticated]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -253,6 +314,27 @@ export default function Home() {
         builderCount,
         goldPass,
       });
+      if (importText.trim()) {
+        try {
+          const raw = JSON.parse(importText);
+          const parsed = parseVillageExport(raw);
+          await importVillageData({
+            tag: parsed.tag ?? player.tag,
+            townHallLevel: parsed.townHallLevel,
+            raw,
+            exportTimestamp: parsed.timestamp ?? undefined,
+            cocAccountId: accountId,
+          });
+        } catch (err) {
+          setImportError(
+            err instanceof Error
+              ? `Saved account, but could not attach village data: ${err.message}`
+              : "Saved account, but could not attach village data."
+          );
+        }
+      }
+      setPendingSavePrompt(false);
+      clearPendingOnboarding();
       setSelectedAccountId(accountId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save account.");
@@ -285,6 +367,7 @@ export default function Home() {
     setApiUpdatedAt(null);
     setVillage(null);
     setImportSuccess(null);
+    setPendingSavePrompt(false);
   }
 
   function persistAccountSettings(nextBuilderCount: number, nextGoldPass: boolean) {
@@ -329,6 +412,33 @@ export default function Home() {
         </header>
 
         <div className="mb-6 grid items-start gap-4 sm:grid-cols-3">
+          <TagLookupPanel
+            tag={tag}
+            loading={loading}
+            lookupLocked={lookupLocked}
+            apiUpdatedAt={apiUpdatedAt}
+            isAuthenticated={isAuthenticated}
+            canSaveCurrentAccount={canSaveCurrentAccount}
+            savingAccount={savingAccount}
+            playerAccountExists={playerAccountExists}
+            onTagChange={handleTagChange}
+            onSubmit={handleSubmit}
+            onSaveAccount={() => void handleSaveAccount()}
+          />
+
+          <VillageImportPanel
+            village={village}
+            importOpen={importOpen}
+            importText={importText}
+            importError={importError}
+            importSuccess={importSuccess}
+            fileRef={fileRef}
+            onToggleOpen={() => setImportOpen((o) => !o)}
+            onImportText={setImportText}
+            onImport={handleImport}
+            onFile={handleFile}
+          />
+
           {authLoading ? (
             <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-800" />
@@ -356,36 +466,37 @@ export default function Home() {
               renaming={accountEditor.renamingAccount}
             />
           ) : (
-            <AuthPanel />
+            <AuthPanel onBeforeAuth={persistPendingOnboarding} />
           )}
-
-          <TagLookupPanel
-            tag={tag}
-            loading={loading}
-            lookupLocked={lookupLocked}
-            apiUpdatedAt={apiUpdatedAt}
-            isAuthenticated={isAuthenticated}
-            canSaveCurrentAccount={canSaveCurrentAccount}
-            savingAccount={savingAccount}
-            playerAccountExists={playerAccountExists}
-            onTagChange={handleTagChange}
-            onSubmit={handleSubmit}
-            onSaveAccount={() => void handleSaveAccount()}
-          />
-
-          <VillageImportPanel
-            village={village}
-            importOpen={importOpen}
-            importText={importText}
-            importError={importError}
-            importSuccess={importSuccess}
-            fileRef={fileRef}
-            onToggleOpen={() => setImportOpen((o) => !o)}
-            onImportText={setImportText}
-            onImport={handleImport}
-            onFile={handleFile}
-          />
         </div>
+
+        {pendingSavePrompt && canSaveCurrentAccount && (
+          <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p>
+                You are signed in. Save this looked-up village now so you can
+                come back to it without re-entering everything.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAccount()}
+                  disabled={savingAccount}
+                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                >
+                  {savingAccount ? "Saving..." : "Save account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingSavePrompt(false)}
+                  className="rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-900"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {pending && (
           <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
@@ -459,6 +570,18 @@ export default function Home() {
             />
           </div>
         )}
+
+        <footer className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-zinc-200 pt-6 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+          <span>
+            This material is unofficial and is not endorsed by Supercell.
+          </span>
+          <Link href="/privacy" className="text-sky-600 hover:underline dark:text-sky-400">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="text-sky-600 hover:underline dark:text-sky-400">
+            Terms
+          </Link>
+        </footer>
       </main>
     </div>
   );

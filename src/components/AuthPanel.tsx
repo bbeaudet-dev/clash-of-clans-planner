@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
 
-export function AuthPanel() {
+export function AuthPanel({ onBeforeAuth }: { onBeforeAuth?: () => void }) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,6 +14,7 @@ export function AuthPanel() {
 
   async function social(provider: "google" | "apple") {
     setError(null);
+    onBeforeAuth?.();
     await authClient.signIn.social({
       provider,
       callbackURL: "/",
@@ -25,6 +27,7 @@ export function AuthPanel() {
     setBusy(true);
     setError(null);
     try {
+      onBeforeAuth?.();
       if (mode === "sign-in") {
         const result = await authClient.signIn.email({
           email,
@@ -51,9 +54,11 @@ export function AuthPanel() {
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-        Sign in
-      </h2>
+      <OnboardingStepHeader
+        step="Step 3"
+        title="Save your accounts to come back anytime"
+        accentClassName="text-violet-600 dark:text-violet-400"
+      />
       <div className="mt-3 grid gap-2">
         <button
           type="button"
