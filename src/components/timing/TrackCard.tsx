@@ -28,8 +28,9 @@ export function TrackCard({
       : track.finishSeconds;
   const criticalPath = track.criticalPathSeconds ?? 0;
   const criticalLimited = criticalPath > distributedFinish;
+  const showDetailRow = !done || track.skippedLevels > 0;
   const countBadges = (
-    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+    <span className="inline-flex items-center gap-1 align-middle">
       <CountBadge
         count={track.levels}
         icon={<UpgradeIcon className="h-3 w-3" />}
@@ -60,7 +61,6 @@ export function TrackCard({
               bottleneck
             </span>
           )}
-          {countBadges}
         </span>
         <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           {done ? (
@@ -70,16 +70,16 @@ export function TrackCard({
           )}
         </span>
       </div>
-      {!done && (
+      {showDetailRow && (
         <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-          <span>
-            {track.levels} levels
+          <span className="inline-flex items-center gap-1">
+            {countBadges}
             {track.parallel > 1
               ? ` · ${formatDuration(track.workSeconds)} ÷ ${track.parallel}`
               : ""}
             {criticalLimited ? ` · max item ${formatDuration(criticalPath)}` : ""}
           </span>
-          <span>done ~ {finishDate(track.finishSeconds)}</span>
+          {!done && <span>done ~ {finishDate(track.finishSeconds)}</span>}
         </div>
       )}
     </>
@@ -112,7 +112,7 @@ export function TrackCard({
               <span>
                 {s.label}
                 {s.available && (
-                  <span className="ml-1 inline-flex items-center gap-1 align-middle">
+                  <span className="ml-1 inline-flex items-center gap-0.5 align-middle">
                     <CountBadge
                       count={s.levels}
                       icon={<UpgradeIcon className="h-3 w-3" />}

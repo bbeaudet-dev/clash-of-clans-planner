@@ -75,7 +75,7 @@ export function ArmyRow({
   onSkipCount?: (next: number) => void;
   active?: boolean;
 }) {
-  const skipped = skipCount > 0;
+  const fullySkipped = maxSkips > 0 && skipCount >= maxSkips;
   const isMaxed = row.thMax !== null && row.level >= row.thMax;
   const pct =
     row.thMax && row.thMax > 0
@@ -96,7 +96,7 @@ export function ArmyRow({
       : pct;
 
   return (
-    <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
+    <li className={`py-1 ${fullySkipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
           {skipMode && onSkipCount && maxSkips > 0 && (
@@ -107,10 +107,10 @@ export function ArmyRow({
               onChange={onSkipCount}
             />
           )}
-          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <span className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
             {row.name}
           </span>
-          {skipped && (
+          {skipCount > 0 && (
             <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
               {skipCount} skipped
             </span>
@@ -172,15 +172,15 @@ export function BuildingRowItem({
   /** How many instances of this building are currently upgrading. */
   activeCount?: number;
 }) {
-  const skipped = skipCount > 0;
+  const fullySkipped = maxSkips > 0 && skipCount >= maxSkips;
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
   const multiple = row.total > 1;
 
   if (row.cap === null) {
     return (
-      <li className="py-1.5">
+      <li className="py-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <span className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
             {row.name}
           </span>
           <span className="shrink-0 font-mono text-xs text-zinc-400">
@@ -210,7 +210,7 @@ export function BuildingRowItem({
       : pct;
 
   return (
-    <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
+    <li className={`py-1 ${fullySkipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
           {skipMode && onSkipCount && maxSkips > 0 && (
@@ -222,7 +222,7 @@ export function BuildingRowItem({
             />
           )}
           <span
-            className={`truncate text-sm font-medium ${
+            className={`truncate text-xs font-medium ${
               notBuilt
                 ? "text-zinc-400 dark:text-zinc-600"
                 : "text-zinc-900 dark:text-zinc-100"
@@ -230,7 +230,7 @@ export function BuildingRowItem({
           >
             {row.name}
           </span>
-          {skipped && (
+          {skipCount > 0 && (
             <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
               {skipCount} skipped
             </span>

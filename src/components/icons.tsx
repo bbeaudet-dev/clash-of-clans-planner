@@ -5,7 +5,7 @@ type IconProps = SVGProps<SVGSVGElement>;
 export function SkipIcon(props: IconProps) {
   return (
     <svg
-      viewBox="0 0 20 20"
+      viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth={1.8}
@@ -14,9 +14,8 @@ export function SkipIcon(props: IconProps) {
       aria-hidden="true"
       {...props}
     >
-      <path d="M3.5 13.5h4.25c3.25 0 5.25-1.75 5.25-5.25V5" />
-      <path d="M10.25 7.75 13 5l2.75 2.75" />
-      <path d="M3.5 6.5h2.75c1.5 0 2.75.5 3.5 1.5" />
+      <path d="M4.5 15.5c2.4-5.2 7.4-8 14.5-7.5" />
+      <path d="M15.25 4.75 19 8l-3.75 3.25" />
     </svg>
   );
 }
