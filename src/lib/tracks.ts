@@ -27,6 +27,7 @@ export interface TrackSub {
   label: string;
   seconds: number;
   levels: number;
+  skippedLevels: number;
   /** False when this sub's data source isn't loaded yet (e.g. no village import). */
   available: boolean;
 }
@@ -46,9 +47,53 @@ export interface Track {
   townHallUpgradeSeconds?: number;
   /** Remaining upgrade levels on this track. */
   levels: number;
+  /** Upgrade levels intentionally excluded from this track. */
+  skippedLevels: number;
   /** How many workers share the track (builders for Builders, else 1). */
   parallel: number;
   subs: TrackSub[];
+}
+
+interface ParsedSkip {
+  key: string;
+  count: number | null;
+}
+
+export function parseSkipEntry(skip: string): ParsedSkip {
+  const match = /^(.*):(\d+)$/.exec(skip);
+  if (!match) return { key: skip, count: null };
+  return { key: match[1], count: Number(match[2]) };
+}
+
+export function skipKeyOf(skip: string): string {
+  return parseSkipEntry(skip).key;
+}
+
+export function getSkipCount(
+  skips: Iterable<string>,
+  key: string,
+  maxCount: number
+): number {
+  if (maxCount <= 0) return 0;
+  let count = 0;
+  for (const skip of skips) {
+    const parsed = parseSkipEntry(skip);
+    if (parsed.key !== key) continue;
+    count += parsed.count ?? maxCount;
+  }
+  return Math.min(maxCount, count);
+}
+
+export function setSkipCount(
+  skips: string[],
+  key: string,
+  nextCount: number,
+  maxCount: number
+): string[] {
+  const clamped = Math.min(Math.max(0, Math.floor(nextCount)), maxCount);
+  const next = skips.filter((skip) => skipKeyOf(skip) !== key);
+  if (clamped === 0 || maxCount <= 0) return next;
+  return [...next, clamped >= maxCount ? key : `${key}:${clamped}`];
 }
 
 // Army categories (from the API) map onto tracks. Buildings/traps (from the
@@ -140,6 +185,12 @@ function builderSubForCategory(category: string): string | null {
   return "village"; // town hall, walls, builder/helper huts, etc.
 }
 
+export function buildingSkipCapacity(row: BuildingRow): number {
+  if (row.cap === null) return 0;
+  if (getEntity(row.name)?.category === "wall") return 1;
+  return buildingProgress(row).remaining + row.cap * (row.toBuild ?? 0);
+}
+
 // Full Gold Pass gives up to 20% off both Builder Boost (Builders + Pets) and
 // Research Boost (Laboratory) time. We model the toggle as the full discount.
 const GOLD_PASS_FACTOR = 0.8;
@@ -158,8 +209,9 @@ export function computeTracks(
     disc: number;
     fixed: number;
     levels: number;
+    skippedLevels: number;
   }
-  const mk = (): Bucket => ({ disc: 0, fixed: 0, levels: 0 });
+  const mk = (): Bucket => ({ disc: 0, fixed: 0, levels: 0, skippedLevels: 0 });
   const track: Record<TrackKey, Bucket> = { builder: mk(), lab: mk(), pets: mk() };
   const subs: Record<TrackKey, Map<string, Bucket>> = {
     builder: new Map(),
@@ -186,6 +238,14 @@ export function computeTracks(
       const b = subBucket(t, subKey);
       b.disc += seconds;
       b.levels += levels;
+    }
+  };
+  const addSkipped = (t: TrackKey, subKey: string | null, levels: number) => {
+    if (levels <= 0) return;
+    track[t].skippedLevels += levels;
+    if (subKey) {
+      const b = subBucket(t, subKey);
+      b.skippedLevels += levels;
     }
   };
   // Swap a live upgrade's committed step out of the discountable pool and into
@@ -217,82 +277,135 @@ export function computeTracks(
     );
   };
   const inProgressKey = (name: string, level: number) => `${name}\0${level}`;
+  const includedStepCounts = new Map<string, number>();
+  const recordIncludedSteps = (
+    name: string,
+    fromLevel: number,
+    toLevel: number,
+    count = 1
+  ) => {
+    for (let level = fromLevel; level < toLevel; level++) {
+      const key = inProgressKey(name, level);
+      includedStepCounts.set(key, (includedStepCounts.get(key) ?? 0) + count);
+    }
+  };
+  const consumeIncludedStep = (name: string, level: number): boolean => {
+    const key = inProgressKey(name, level);
+    const count = includedStepCounts.get(key) ?? 0;
+    if (count <= 0) return false;
+    includedStepCounts.set(key, count - 1);
+    return true;
+  };
+  const rangeAfterSkipped = (
+    level: number,
+    cap: number,
+    prevCap: number | null,
+    skippedLevels: number
+  ) => {
+    const catchUp = Math.max(0, (prevCap ?? 0) - level);
+    const skippedCatchUp = Math.min(skippedLevels, catchUp);
+    const skippedTop = Math.max(0, skippedLevels - skippedCatchUp);
+    return {
+      from: Math.min(cap, level + skippedCatchUp),
+      to: Math.max(level + skippedCatchUp, cap - skippedTop),
+    };
+  };
+  const addTimedChain = (
+    t: TrackKey,
+    subKey: string | null,
+    name: string,
+    fromLevel: number,
+    toLevel: number,
+    count = 1
+  ) => {
+    if (toLevel <= fromLevel || count <= 0) return;
+    const seconds = upgradeTime(name, fromLevel, toLevel);
+    addWork(t, subKey, seconds * count, (toLevel - fromLevel) * count);
+    recordIncludedSteps(name, fromLevel, toLevel, count);
+    if (t === "builder") recordBuilderChain(seconds);
+  };
+  const addBuildingWork = (
+    row: BuildingRow,
+    subKey: string | null,
+    skippedLevels: number
+  ) => {
+    if (row.cap === null) return;
+    const cap = row.cap;
+    const prev = row.prevCap ?? 0;
+    const instances: { from: number; to: number }[] = [];
+    for (const bl of row.byLevel) {
+      for (let i = 0; i < bl.count; i++) {
+        if (bl.level < cap) instances.push({ from: bl.level, to: cap });
+      }
+    }
+    for (let i = 0; i < (row.toBuild ?? 0); i++) {
+      instances.push({ from: 0, to: cap });
+    }
+
+    let remainingSkips = skippedLevels;
+    for (const instance of instances) {
+      if (remainingSkips <= 0) break;
+      const use = Math.min(remainingSkips, Math.max(0, prev - instance.from));
+      instance.from += use;
+      remainingSkips -= use;
+    }
+    for (const instance of instances) {
+      if (remainingSkips <= 0) break;
+      const use = Math.min(remainingSkips, Math.max(0, instance.to - instance.from));
+      instance.to -= use;
+      remainingSkips -= use;
+    }
+
+    for (const instance of instances) {
+      addTimedChain("builder", subKey, row.name, instance.from, instance.to);
+    }
+  };
 
   if (stats) {
     for (const g of stats.groups) {
       const t = ARMY_TRACK[g.category];
       if (!t) continue;
       for (const r of g.rows) {
-        if (skips.has(`army:${r.name}`)) continue;
         if (r.thMax === null || r.remaining <= 0) continue;
-        const seconds = upgradeTime(r.name, r.level, r.thMax);
         let subKey: string | null = null;
         if (t === "builder") subKey = "hero";
         else if (t === "lab")
           subKey = labSubKey(g.category, getEntity(r.name)?.resource ?? null);
-        addWork(t, subKey, seconds, r.remaining);
-        if (t === "builder") recordBuilderChain(seconds);
+        const skippedLevels = getSkipCount(skips, `army:${r.name}`, r.remaining);
+        addSkipped(t, subKey, skippedLevels);
+        if (skippedLevels >= r.remaining) continue;
+        const { from, to } = rangeAfterSkipped(
+          r.level,
+          r.thMax,
+          r.prevThMax,
+          skippedLevels
+        );
+        addTimedChain(t, subKey, r.name, from, to);
       }
     }
   }
 
   if (village) {
-    const inProgressByNameLevel = new Map<string, number[]>();
-    for (const u of village.inProgress) {
-      if (skips.has(`building:${u.name}`)) continue;
-      const key = inProgressKey(u.name, u.level);
-      const timers = inProgressByNameLevel.get(key) ?? [];
-      timers.push(u.secondsLeft);
-      inProgressByNameLevel.set(key, timers);
-    }
-
     for (const g of village.groups) {
       if (g.category === "helper") continue; // gold-only, no build time
       for (const r of g.rows) {
-        if (skips.has(`building:${r.name}`)) continue;
         if (r.cap === null) continue;
-        const cap = r.cap;
-        for (const bl of r.byLevel) {
-          if (bl.level >= cap) continue;
-          const chainSeconds = upgradeTime(r.name, bl.level, cap);
-          const liveTimers = inProgressByNameLevel.get(
-            inProgressKey(r.name, bl.level)
-          );
-          const liveCount = Math.min(bl.count, liveTimers?.length ?? 0);
-          for (let i = 0; i < liveCount; i++) {
-            recordBuilderChain(
-              upgradeTime(r.name, bl.level + 1, cap),
-              liveTimers?.[i] ?? 0
-            );
-          }
-          if (bl.count > liveCount) recordBuilderChain(chainSeconds);
-          addWork(
-            "builder",
-            g.category,
-            chainSeconds * bl.count,
-            (cap - bl.level) * bl.count
-          );
-        }
-        // Copies this TH grants that aren't placed yet: built from scratch
-        // (placement is instant, so 0 -> cap is the full construction time).
-        const toBuild = r.toBuild ?? 0;
-        if (toBuild > 0) {
-          const chainSeconds = upgradeTime(r.name, 0, cap);
-          recordBuilderChain(chainSeconds);
-          addWork(
-            "builder",
-            g.category,
-            chainSeconds * toBuild,
-            cap * toBuild
-          );
-        }
+        const category = getEntity(r.name)?.category;
+        if (category === "wall") continue; // instant, tracked separately below.
+        const subKey = builderSubForCategory(category ?? g.category);
+        const maxSkips = buildingSkipCapacity(r);
+        const skippedLevels = getSkipCount(skips, `building:${r.name}`, maxSkips);
+        addSkipped("builder", subKey, skippedLevels);
+        addBuildingWork(r, subKey, skippedLevels);
       }
     }
 
     // The Town Hall reads as maxed at its current level (its level *is* the TH
     // number), so the loop above skips it. Upgrading to the next Town Hall is
     // still the final Builders step, so add that transition here as one level.
-    if (!skips.has("building:Town Hall")) {
+    const townHallSkipped = getSkipCount(skips, "building:Town Hall", 1);
+    addSkipped("builder", "village", townHallSkipped);
+    if (townHallSkipped === 0) {
       const thStep = upgradeTime(
         "Town Hall",
         village.townHallLevel,
@@ -327,7 +440,7 @@ export function computeTracks(
       const armyTrack = ARMY_TRACK[cat];
       if (armyTrack) {
         // Only adjust army work the stats loop actually added.
-        if (!stats || skips.has(`army:${u.name}`)) continue;
+        if (!stats || !consumeIncludedStep(u.name, u.level)) continue;
         // If the API level already moved past this step, the upgrade completed
         // and is fully reflected in stats — don't double-remove it.
         const lvl = statLevel.get(u.name);
@@ -340,7 +453,7 @@ export function computeTracks(
               : null; // pets have no sub-group
         applyInProgress(armyTrack, subKey, fullStep, left);
       } else {
-        if (skips.has(`building:${u.name}`)) continue;
+        if (!consumeIncludedStep(u.name, u.level)) continue;
         const subKey = builderSubForCategory(cat);
         if (!subKey) continue; // helper (gold-only, no build time)
         applyInProgress("builder", subKey, fullStep, left);
@@ -363,6 +476,7 @@ export function computeTracks(
         label,
         seconds: b ? secondsOf(b) : 0,
         levels: b?.levels ?? 0,
+        skippedLevels: b?.skippedLevels ?? 0,
         available: available(key),
       };
     });
@@ -392,6 +506,7 @@ export function computeTracks(
       beginTownHallUpgradeSeconds,
       townHallUpgradeSeconds,
       levels: track.builder.levels,
+      skippedLevels: track.builder.skippedLevels,
       parallel: builders,
       subs: orderedSubs("builder", BUILDER_SUB_ORDER, (key) =>
         key === "hero" ? hasArmy : hasVillage
@@ -403,6 +518,7 @@ export function computeTracks(
       workSeconds: labWork,
       finishSeconds: labWork,
       levels: track.lab.levels,
+      skippedLevels: track.lab.skippedLevels,
       parallel: 1,
       subs: orderedSubs("lab", LAB_SUB_ORDER, () => hasArmy),
     },
@@ -412,6 +528,7 @@ export function computeTracks(
       workSeconds: petWork,
       finishSeconds: petWork,
       levels: track.pets.levels,
+      skippedLevels: track.pets.skippedLevels,
       parallel: 1,
       subs: [],
     },
@@ -529,6 +646,125 @@ export function computeBaseSummary(
         : Math.min(99, Math.round((bandDone / bandTotal) * 100));
 
   return { bandDone, bandTotal, pctToMax, rushedSeconds };
+}
+
+export function computeSkipSummary(
+  stats: VillageStats | null,
+  village: VillageExport | null,
+  skips: Iterable<string>
+): number {
+  let total = 0;
+  if (stats) {
+    for (const g of stats.groups) {
+      for (const r of g.rows) {
+        const skipped = getSkipCount(skips, `army:${r.name}`, r.remaining);
+        if (skipped <= 0) continue;
+        total += g.category === "equipment" ? 1 : skipped;
+      }
+    }
+  }
+  if (village) {
+    for (const g of village.groups) {
+      for (const r of g.rows) {
+        const maxSkips = buildingSkipCapacity(r);
+        const skipped = getSkipCount(skips, `building:${r.name}`, maxSkips);
+        if (skipped <= 0) continue;
+        total += getEntity(r.name)?.category === "wall" ? 1 : skipped;
+      }
+    }
+  }
+  return total;
+}
+
+export type WallStatus = "ahead" | "on-track" | "behind";
+
+export interface WallMetric {
+  pctComplete: number;
+  totalWalls: number;
+  maxedWalls: number;
+  catchUpLevels: number;
+  status: WallStatus;
+  skipped: boolean;
+}
+
+export function computeWallMetric(
+  village: VillageExport | null,
+  pctToMax: number,
+  skips: Iterable<string> = []
+): WallMetric | null {
+  if (!village) return null;
+  const wallRow =
+    village.groups
+      .flatMap((g) => g.rows)
+      .find((r) => getEntity(r.name)?.category === "wall") ?? null;
+  if (!wallRow) return null;
+
+  const wallCap = maxLevelAtTH("Wall", village.townHallLevel);
+  const totalWalls = wallRow.total;
+  const maxedWalls =
+    wallCap === null
+      ? 0
+      : wallRow.byLevel
+          .filter((l) => l.level >= wallCap)
+          .reduce((s, l) => s + l.count, 0);
+  const pctComplete =
+    totalWalls > 0 ? Math.round((maxedWalls / totalWalls) * 100) : 0;
+  const prevWallCap =
+    wallRow.prevCap ?? maxLevelAtTH("Wall", village.townHallLevel - 1) ?? 0;
+  const catchUpLevels = wallRow.byLevel.reduce(
+    (sum, l) => sum + Math.max(0, prevWallCap - l.level) * l.count,
+    0
+  );
+  const delta = pctComplete - pctToMax;
+  const status: WallStatus =
+    Math.abs(delta) <= 15 ? "on-track" : delta > 0 ? "ahead" : "behind";
+
+  return {
+    pctComplete,
+    totalWalls,
+    maxedWalls,
+    catchUpLevels,
+    status,
+    skipped: getSkipCount(skips, `building:${wallRow.name}`, 1) > 0,
+  };
+}
+
+export interface EquipmentMetric {
+  done: number;
+  total: number;
+  pct: number;
+  skippedLevels: number;
+  skippedItems: number;
+}
+
+export function computeEquipmentMetric(
+  stats: VillageStats | null,
+  skips: Iterable<string>
+): EquipmentMetric | null {
+  const group = stats?.groups.find((g) => g.category === "equipment") ?? null;
+  if (!group) return null;
+
+  let done = 0;
+  let total = 0;
+  let skippedLevels = 0;
+  let skippedItems = 0;
+  for (const r of group.rows) {
+    const cap = r.thMax ?? r.gameMax;
+    const skipped = getSkipCount(skips, `army:${r.name}`, r.remaining);
+    if (skipped > 0) skippedItems++;
+    skippedLevels += skipped;
+    const adjustedCap = Math.max(0, cap - skipped);
+    total += adjustedCap;
+    done += Math.min(r.level, adjustedCap);
+  }
+
+  return {
+    done,
+    total,
+    pct: total > 0 ? Math.round((done / total) * 100) : 0,
+    skippedLevels,
+    skippedItems,
+  };
 }
 
 /** Format a duration in seconds as a compact "Xd Yh" / "Yh Zm" / "Zm" string. */
