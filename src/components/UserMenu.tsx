@@ -49,7 +49,6 @@ export function UserMenu({
       <OnboardingStepHeader
         step="Step 3"
         title="Save your accounts to come back anytime"
-        accentClassName="text-violet-600 dark:text-violet-400"
       />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

@@ -14,7 +14,7 @@ export function CountBadge({
   if (count <= 0) return null;
   return (
     <span
-      className={`inline-flex items-center font-mono text-[11px] ${className}`}
+      className={`inline-flex items-center font-mono text-xs ${className}`}
       title={title}
     >
       {count}

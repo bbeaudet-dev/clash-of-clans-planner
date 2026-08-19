@@ -30,7 +30,6 @@ export function VillageImportPanel({
       <OnboardingStepHeader
         step="Step 2"
         title="Copy/paste your village data JSON from Settings"
-        accentClassName="text-amber-600 dark:text-amber-400"
       >
         <div className="group relative shrink-0">
           <button

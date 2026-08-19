@@ -30,7 +30,7 @@ export function TrackCard({
   const criticalLimited = criticalPath > distributedFinish;
   const showDetailRow = !done || track.skippedLevels > 0;
   const countBadges = (
-    <span className="inline-flex items-center gap-2 align-middle">
+    <span className="inline-flex items-center gap-1.5 align-middle">
       <CountBadge
         count={track.levels}
         icon={<UpgradeIcon className="h-3 w-3" />}
@@ -71,7 +71,7 @@ export function TrackCard({
         </span>
       </div>
       {showDetailRow && (
-        <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+        <div className="mt-0.5 flex items-baseline justify-between text-xs text-zinc-500 dark:text-zinc-400">
           <span className="inline-flex items-center gap-1">
             {countBadges}
             {track.parallel > 1
@@ -103,7 +103,7 @@ export function TrackCard({
           {track.subs.map((s) => (
             <li
               key={s.key}
-              className={`flex items-baseline justify-between text-[11px] ${
+              className={`flex items-baseline justify-between text-xs ${
                 s.available
                   ? "text-zinc-500 dark:text-zinc-400"
                   : "text-zinc-400 dark:text-zinc-600"
@@ -112,7 +112,7 @@ export function TrackCard({
               <span>
                 {s.label}
                 {s.available && (
-                  <span className="ml-1 inline-flex items-center gap-2 align-middle">
+                  <span className="ml-1 inline-flex items-center gap-1.5 align-middle">
                     <CountBadge
                       count={s.levels}
                       icon={<UpgradeIcon className="h-3 w-3" />}
