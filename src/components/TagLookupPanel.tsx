@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
+import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
 
 export function TagLookupPanel({
   tag,
@@ -29,6 +30,11 @@ export function TagLookupPanel({
 }) {
   return (
     <div>
+      <OnboardingStepHeader
+        step="Step 1"
+        title="Enter your player tag"
+        accentClassName="text-sky-600 dark:text-sky-400"
+      />
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           value={tag}

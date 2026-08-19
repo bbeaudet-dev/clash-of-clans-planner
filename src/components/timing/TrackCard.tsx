@@ -30,11 +30,11 @@ export function TrackCard({
   const criticalLimited = criticalPath > distributedFinish;
   const showDetailRow = !done || track.skippedLevels > 0;
   const countBadges = (
-    <span className="inline-flex items-center gap-1 align-middle">
+    <span className="inline-flex items-center gap-2 align-middle">
       <CountBadge
         count={track.levels}
         icon={<UpgradeIcon className="h-3 w-3" />}
-        className="text-emerald-600 dark:text-emerald-400"
+        className="text-sky-600 dark:text-sky-400"
         title="Included upgrade levels"
       />
       <CountBadge
@@ -112,11 +112,11 @@ export function TrackCard({
               <span>
                 {s.label}
                 {s.available && (
-                  <span className="ml-1 inline-flex items-center gap-0.5 align-middle">
+                  <span className="ml-1 inline-flex items-center gap-2 align-middle">
                     <CountBadge
                       count={s.levels}
                       icon={<UpgradeIcon className="h-3 w-3" />}
-                      className="text-emerald-600 dark:text-emerald-400"
+                      className="text-sky-600 dark:text-sky-400"
                       title="Included upgrade levels"
                     />
                     <CountBadge

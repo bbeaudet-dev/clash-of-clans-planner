@@ -4,6 +4,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { useQuery } from "convex/react";
+import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
 
 interface AccountOption {
   _id: Id<"cocAccounts">;
@@ -45,6 +46,11 @@ export function UserMenu({
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <OnboardingStepHeader
+        step="Step 3"
+        title="Save your accounts to come back anytime"
+        accentClassName="text-violet-600 dark:text-violet-400"
+      />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -65,9 +71,20 @@ export function UserMenu({
         </button>
       </div>
 
-      <label className="mt-3 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-        Clash account
-      </label>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          Clash account
+        </label>
+        {selectedAccount && !editingSelectedAccount && (
+          <button
+            type="button"
+            onClick={onStartEditAccount}
+            className="text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline hover:underline-offset-2 dark:text-sky-400 dark:hover:text-sky-300"
+          >
+            Edit Account
+          </button>
+        )}
+      </div>
       <select
         value={selectedAccountId ?? ""}
         disabled={accountsLoading}
@@ -89,16 +106,6 @@ export function UserMenu({
           </>
         )}
       </select>
-
-      {selectedAccount && !editingSelectedAccount && (
-        <button
-          type="button"
-          onClick={onStartEditAccount}
-          className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-        >
-          Edit Account
-        </button>
-      )}
 
       {selectedAccount && editingSelectedAccount && (
         <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">

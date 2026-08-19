@@ -121,13 +121,13 @@ export function TimingPanel({
         </h2>
 
         {!loading && (stats || village) && (
-          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-zinc-400">
                 Maxed
               </p>
               <p
-                className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+                className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100"
                 title="Progress through this Town Hall's new upgrades (previous TH cap to current TH cap)"
               >
                 {summary.pctToMax}%
@@ -138,7 +138,7 @@ export function TimingPanel({
                 Rushed
               </p>
               <p
-                className={`font-mono text-sm font-semibold ${rushColor(summary.rushedSeconds)}`}
+                className={`font-mono text-base font-semibold ${rushColor(summary.rushedSeconds)}`}
                 title="Total upgrade time still owed below the previous Town Hall's caps"
               >
                 {summary.rushedSeconds > 0
@@ -150,9 +150,9 @@ export function TimingPanel({
               <p className="text-[10px] uppercase tracking-wide text-zinc-400">
                 Skipped
               </p>
-              <p className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
+              <p className="inline-flex items-center font-mono text-base font-semibold text-amber-600 dark:text-amber-400">
                 {totalSkipped}
-                <SkipIcon className="h-3.5 w-3.5" />
+                <SkipIcon className="h-4 w-4" />
               </p>
             </div>
           </div>
@@ -164,8 +164,8 @@ export function TimingPanel({
             <div className="mt-2 h-3 w-52 rounded bg-zinc-100 dark:bg-zinc-900" />
           </div>
         ) : slowestTrack ? (
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
-            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-2">
+            <span className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
               {formatDuration(slowestTrack.finishSeconds)}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -181,7 +181,7 @@ export function TimingPanel({
             )}
           </div>
         ) : (
-          <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-900 dark:text-zinc-400">
+          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
             {stats || village
               ? "Everything tracked is maxed. 🎉"
               : "Look up a player and import village data to see time-to-max."}
