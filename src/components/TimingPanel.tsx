@@ -1,6 +1,11 @@
 import { VillageStats } from "@/lib/gameData";
-import { VillageExport } from "@/lib/villageExport";
-import { computeTracks, formatDuration, Track } from "@/lib/tracks";
+import { InProgressUpgrade, VillageExport } from "@/lib/villageExport";
+import {
+  computeTracks,
+  formatDuration,
+  itemTrackKey,
+  Track,
+} from "@/lib/tracks";
 
 const MAX_BUILDERS = 7;
 
@@ -99,6 +104,23 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
         </ul>
       </details>
     </li>
+  );
+}
+
+function UpgradeList({ items }: { items: InProgressUpgrade[] }) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map((u, i) => (
+        <li key={`${u.name}-${i}`} className="flex justify-between gap-3">
+          <span className="truncate">
+            {u.name} <span className="text-sky-500">L{u.level}</span>
+          </span>
+          <span className="shrink-0 font-mono text-xs">
+            {formatDuration(u.secondsLeft)} left
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -229,18 +251,23 @@ export function TimingPanel({
           <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
             Currently upgrading ({village.inProgress.length})
           </h3>
-          <ul className="flex flex-col gap-1 text-sm text-sky-900 dark:text-sky-200">
-            {village.inProgress.map((u, i) => (
-              <li key={`${u.name}-${i}`} className="flex justify-between gap-3">
-                <span className="truncate">
-                  {u.name} <span className="text-sky-500">L{u.level}</span>
-                </span>
-                <span className="shrink-0 font-mono text-xs">
-                  {formatDuration(u.secondsLeft)} left
-                </span>
-              </li>
-            ))}
-          </ul>
+          {(() => {
+            const builders = village.inProgress.filter(
+              (u) => itemTrackKey(u.name) === "builder"
+            );
+            const labPets = village.inProgress.filter(
+              (u) => itemTrackKey(u.name) !== "builder"
+            );
+            return (
+              <div className="flex flex-col gap-2 text-sm text-sky-900 dark:text-sky-200">
+                {builders.length > 0 && <UpgradeList items={builders} />}
+                {builders.length > 0 && labPets.length > 0 && (
+                  <div className="border-t border-sky-200/70 dark:border-sky-900" />
+                )}
+                {labPets.length > 0 && <UpgradeList items={labPets} />}
+              </div>
+            );
+          })()}
         </div>
       )}
     </aside>

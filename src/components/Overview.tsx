@@ -90,6 +90,14 @@ function ArmyRow({
   const showNext =
     row.nextThMax !== null && row.thMax !== null && row.nextThMax > row.thMax;
 
+  // While upgrading, fill the bar to the level being worked toward (level + 1)
+  // and color it blue; it becomes green once the finished level is maxed.
+  const activeUpgrade = active && !isMaxed;
+  const barPct =
+    activeUpgrade && row.thMax && row.thMax > 0
+      ? Math.min(100, Math.round(((row.level + 1) / row.thMax) * 100))
+      : pct;
+
   return (
     <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
       <div className="flex items-baseline justify-between gap-2">
@@ -134,7 +142,7 @@ function ArmyRow({
           </span>
         </span>
       </div>
-      <Bar pct={pct} maxed={isMaxed} active={active && !isMaxed} />
+      <Bar pct={barPct} maxed={isMaxed} active={activeUpgrade} />
       <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
         {showPrev && <span>prev {row.prevThMax}</span>}
         {row.thMax !== null && (
@@ -157,13 +165,14 @@ function BuildingRowItem({
   skipMode,
   skipped,
   onToggleSkip,
-  active = false,
+  activeCount = 0,
 }: {
   row: BuildingRow;
   skipMode: boolean;
   skipped: boolean;
   onToggleSkip?: () => void;
-  active?: boolean;
+  /** How many instances of this building are currently upgrading. */
+  activeCount?: number;
 }) {
   const breakdown = row.byLevel.map((l) => `${l.count}×L${l.level}`).join(", ");
   const multiple = row.total > 1;
@@ -201,6 +210,14 @@ function BuildingRowItem({
   // share a level, otherwise the average across instances.
   const avg = effectiveTotal > 0 ? sumLevels / effectiveTotal : 0;
   const avgStr = Number.isInteger(avg) ? String(avg) : avg.toFixed(1);
+
+  // While upgrading, extend the bar to the levels being worked toward (one per
+  // in-progress instance) and color it blue until those finish.
+  const activeUpgrade = activeCount > 0 && !isMaxed;
+  const barPct =
+    activeUpgrade && sumCap > 0
+      ? Math.min(100, ((sumLevels + activeCount) / sumCap) * 100)
+      : pct;
 
   return (
     <li className={`py-1.5 ${skipped ? "opacity-60" : ""}`}>
@@ -255,7 +272,7 @@ function BuildingRowItem({
           </span>
         </span>
       </div>
-      <Bar pct={pct} maxed={isMaxed} active={active && !isMaxed} />
+      <Bar pct={barPct} maxed={isMaxed} active={activeUpgrade} />
       {(!isMaxed || multiple) && (
         <div className="mt-1 flex justify-end gap-3 text-[11px] text-zinc-400">
           {!isMaxed && (
@@ -366,8 +383,12 @@ export function Overview({
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
   const skipSet = new Set(skips);
-  // Names of items with a live upgrade timer, so their bars show as "active".
-  const inProgressNames = new Set(village?.inProgress.map((u) => u.name) ?? []);
+  // How many live upgrade timers each item has, so bars can show as "active"
+  // and extend to the level being worked toward.
+  const inProgressCount = new Map<string, number>();
+  for (const u of village?.inProgress ?? []) {
+    inProgressCount.set(u.name, (inProgressCount.get(u.name) ?? 0) + 1);
+  }
 
   const armyGroup = (c: Category) =>
     stats?.groups.find((g) => g.category === c) ?? null;
@@ -397,7 +418,7 @@ export function Overview({
               skipMode={skipMode}
               skipped={skippable && skipSet.has(key)}
               onToggleSkip={skippable ? () => onToggleSkip(key) : undefined}
-              active={inProgressNames.has(row.name)}
+              active={inProgressCount.has(row.name)}
             />
           );
         })}
@@ -505,7 +526,7 @@ export function Overview({
                     onToggleSkip={
                       skippable ? () => onToggleSkip(key) : undefined
                     }
-                    active={inProgressNames.has(row.name)}
+                    activeCount={inProgressCount.get(row.name) ?? 0}
                   />
                   );
                 })}

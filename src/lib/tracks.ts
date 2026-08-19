@@ -74,6 +74,15 @@ function labSubKey(category: string, resource: string | null): string {
   return dark ? "de-spell" : "el-spell"; // spell
 }
 
+/**
+ * Which track an item belongs to, by name. Army units map via ARMY_TRACK;
+ * everything else (buildings, traps, walls, …) is Builders work.
+ */
+export function itemTrackKey(name: string): TrackKey {
+  const cat = getEntity(name)?.category;
+  return (cat && ARMY_TRACK[cat]) || "builder";
+}
+
 // Fold a raw building category (from the entity lookup) into the Builders
 // sub-group it belongs to, matching how the export groups them.
 function builderSubForCategory(category: string): string | null {
