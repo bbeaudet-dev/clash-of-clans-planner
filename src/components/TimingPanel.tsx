@@ -1,31 +1,25 @@
-import type { ReactNode } from "react";
 import { CATEGORY_UNLOCK_TH, VillageStats } from "@/lib/gameData";
-import { CheckIcon, SkipIcon, UpgradeIcon } from "@/components/icons";
+import { SkipIcon } from "@/components/icons";
 import { InProgressUpgrade, VillageExport } from "@/lib/villageExport";
+import {
+  computeTracks,
+  formatDuration,
+  itemTrackKey,
+  pendingUpgrades,
+} from "@/lib/tracks";
 import {
   computeBaseSummary,
   computeEquipmentMetric,
   computeSkipSummary,
-  computeTracks,
   computeWallMetric,
-  formatDuration,
-  itemTrackKey,
-  pendingUpgrades,
-  Track,
   WallStatus,
-} from "@/lib/tracks";
+} from "@/lib/completionMetrics";
+import { CompletionCard } from "@/components/timing/CompletionCard";
+import { CountBadge } from "@/components/timing/CountBadge";
+import { TrackCard } from "@/components/timing/TrackCard";
 
 const MAX_BUILDERS = 7;
 const BOTTLENECK_THRESHOLD_SECONDS = 5 * 24 * 60 * 60;
-
-function finishDate(seconds: number): string {
-  const d = new Date(Date.now() + seconds * 1000);
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
-  });
-}
 
 function rushColor(seconds: number): string {
   const days = seconds / 86400;
@@ -43,192 +37,6 @@ function statusClass(status: WallStatus): string {
     return "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300";
   }
   return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-}
-
-function CountBadge({
-  count,
-  icon,
-  className,
-  title,
-}: {
-  count: number;
-  icon: ReactNode;
-  className: string;
-  title: string;
-}) {
-  if (count <= 0) return null;
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 font-mono text-[11px] ${className}`}
-      title={title}
-    >
-      {count}
-      {icon}
-    </span>
-  );
-}
-
-function CompletionCard({
-  title,
-  primary,
-  secondary,
-  children,
-}: {
-  title: string;
-  primary: string;
-  secondary: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {title}
-        </h3>
-        <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {primary}
-        </span>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-        <span>{secondary}</span>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function TrackCard({
-  track,
-  bottleneck,
-  defaultOpen = false,
-}: {
-  track: Track;
-  bottleneck: boolean;
-  defaultOpen?: boolean;
-}) {
-  const done = track.levels === 0;
-  const expandable = !done && track.subs.length > 0;
-  const distributedFinish =
-    track.parallel > 1
-      ? Math.round(track.workSeconds / track.parallel)
-      : track.finishSeconds;
-  const criticalPath = track.criticalPathSeconds ?? 0;
-  const criticalLimited = criticalPath > distributedFinish;
-  const countBadges = (
-    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
-      <CountBadge
-        count={track.levels}
-        icon={<UpgradeIcon className="h-3 w-3" />}
-        className="text-emerald-600 dark:text-emerald-400"
-        title="Included upgrade levels"
-      />
-      <CountBadge
-        count={track.skippedLevels}
-        icon={<SkipIcon className="h-3 w-3" />}
-        className="text-amber-600 dark:text-amber-400"
-        title="Skipped upgrade levels"
-      />
-    </span>
-  );
-
-  const header = (
-    <>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {expandable && <span className="mr-1 text-zinc-400 transition-transform group-open:rotate-90 inline-block">›</span>}
-          {track.label}
-          {bottleneck && (
-            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              bottleneck
-            </span>
-          )}
-          {countBadges}
-        </span>
-        <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {done ? (
-            <CheckIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            formatDuration(track.finishSeconds)
-          )}
-        </span>
-      </div>
-      {!done && (
-        <div className="mt-0.5 flex items-baseline justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-          <span>
-            {track.levels} levels
-            {track.parallel > 1
-              ? ` · ${formatDuration(track.workSeconds)} ÷ ${track.parallel}`
-              : ""}
-            {criticalLimited ? ` · max item ${formatDuration(criticalPath)}` : ""}
-          </span>
-          <span>done ~ {finishDate(track.finishSeconds)}</span>
-        </div>
-      )}
-    </>
-  );
-
-  const cardClass = `rounded-lg border p-3 ${
-    bottleneck
-      ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40"
-      : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-  }`;
-
-  if (!expandable) {
-    return (
-      <li className={cardClass}>{header}</li>
-    );
-  }
-
-  return (
-    <li>
-      <details open={defaultOpen} className={`group ${cardClass}`}>
-        <summary className="cursor-pointer list-none">{header}</summary>
-        <ul className="mt-2 flex flex-col gap-1 border-t border-zinc-200/70 pt-2 dark:border-zinc-800">
-          {track.subs.map((s) => (
-            <li
-              key={s.key}
-              className={`flex items-baseline justify-between text-[11px] ${
-                s.available
-                  ? "text-zinc-500 dark:text-zinc-400"
-                  : "text-zinc-400 dark:text-zinc-600"
-              }`}
-            >
-              <span>
-                {s.label}
-                {s.available && (
-                  <span className="ml-1 inline-flex items-center gap-1 align-middle">
-                    <CountBadge
-                      count={s.levels}
-                      icon={<UpgradeIcon className="h-3 w-3" />}
-                      className="text-emerald-600 dark:text-emerald-400"
-                      title="Included upgrade levels"
-                    />
-                    <CountBadge
-                      count={s.skippedLevels}
-                      icon={<SkipIcon className="h-3 w-3" />}
-                      className="text-amber-600 dark:text-amber-400"
-                      title="Skipped upgrade levels"
-                    />
-                  </span>
-                )}
-              </span>
-              <span className="font-mono">
-                {!s.available ? (
-                  <span className="italic">import data</span>
-                ) : s.levels === 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    <CheckIcon className="h-3.5 w-3.5" />
-                  </span>
-                ) : (
-                  formatDuration(s.seconds)
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </details>
-    </li>
-  );
 }
 
 function UpgradeList({ items }: { items: InProgressUpgrade[] }) {
