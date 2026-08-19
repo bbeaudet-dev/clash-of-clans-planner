@@ -499,7 +499,6 @@ export default function Home() {
               village={village}
               skips={skips}
               skipMode={skipMode}
-              onSkipMode={setSkipMode}
               onToggleSkip={handleToggleSkip}
             />
             <TimingPanel
@@ -511,6 +510,8 @@ export default function Home() {
               stats={stats}
               village={village}
               skips={skips}
+              skipMode={skipMode}
+              onSkipMode={setSkipMode}
             />
           </div>
         )}

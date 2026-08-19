@@ -1,4 +1,4 @@
-import { VillageStats } from "@/lib/gameData";
+import { CATEGORY_UNLOCK_TH, VillageStats } from "@/lib/gameData";
 import { InProgressUpgrade, VillageExport } from "@/lib/villageExport";
 import {
   computeTracks,
@@ -18,7 +18,15 @@ function finishDate(seconds: number): string {
   });
 }
 
-function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean }) {
+function TrackCard({
+  track,
+  bottleneck,
+  defaultOpen = false,
+}: {
+  track: Track;
+  bottleneck: boolean;
+  defaultOpen?: boolean;
+}) {
   const done = track.levels === 0;
   const expandable = !done && track.subs.length > 0;
   const distributedFinish =
@@ -73,7 +81,7 @@ function TrackCard({ track, bottleneck }: { track: Track; bottleneck: boolean })
 
   return (
     <li>
-      <details className={`group ${cardClass}`}>
+      <details open={defaultOpen} className={`group ${cardClass}`}>
         <summary className="cursor-pointer list-none">{header}</summary>
         <ul className="mt-2 flex flex-col gap-1 border-t border-zinc-200/70 pt-2 dark:border-zinc-800">
           {track.subs.map((s) => (
@@ -113,7 +121,7 @@ function UpgradeList({ items }: { items: InProgressUpgrade[] }) {
       {items.map((u, i) => (
         <li key={`${u.name}-${i}`} className="flex justify-between gap-3">
           <span className="truncate">
-            {u.name} <span className="text-sky-500">L{u.level}</span>
+            {u.name} <span className="text-sky-500">L{u.level + 1}</span>
           </span>
           <span className="shrink-0 font-mono text-xs">
             {formatDuration(u.secondsLeft)} left
@@ -133,6 +141,8 @@ export function TimingPanel({
   stats,
   village,
   skips,
+  skipMode,
+  onSkipMode,
 }: {
   builderCount: number;
   onBuilderCount: (n: number) => void;
@@ -142,13 +152,23 @@ export function TimingPanel({
   stats: VillageStats | null;
   village: VillageExport | null;
   skips: string[];
+  skipMode: boolean;
+  onSkipMode: (enabled: boolean) => void;
 }) {
-  const tracks = computeTracks(
+  const townHallLevel = stats?.townHallLevel ?? village?.townHallLevel ?? 0;
+  const allTracks = computeTracks(
     stats,
     village,
     builderCount,
     goldPass,
     new Set(skips)
+  );
+  // Hide tracks whose feature isn't unlocked yet (e.g. Pets before TH14).
+  const tracks = allTracks.filter(
+    (t) =>
+      t.key !== "pets" ||
+      townHallLevel === 0 ||
+      townHallLevel >= CATEGORY_UNLOCK_TH.pet
   );
   const active = tracks.filter((t) => t.levels > 0);
   const bottleneck = active.reduce<Track | null>(
@@ -189,6 +209,18 @@ export function TimingPanel({
               className="h-4 w-4 accent-amber-500"
             />
           </label>
+
+          <button
+            type="button"
+            onClick={() => onSkipMode(!skipMode)}
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+              skipMode
+                ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            }`}
+          >
+            {skipMode ? "Done" : "Skip Mode"}
+          </button>
         </div>
 
         {loading ? (
@@ -197,14 +229,14 @@ export function TimingPanel({
             <div className="mt-2 h-3 w-52 rounded bg-zinc-100 dark:bg-zinc-900" />
           </div>
         ) : bottleneck ? (
-          <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
-            <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+            <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {formatDuration(bottleneck.finishSeconds)}
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              until fully maxed · limited by {bottleneck.label} · done ~{" "}
-              {finishDate(bottleneck.finishSeconds)}
-            </div>
+            </span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              until fully maxed
+              {skips.length > 0 && ` (${skips.length} skipped)`}
+            </span>
           </div>
         ) : (
           <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-900 dark:text-zinc-400">
@@ -233,6 +265,7 @@ export function TimingPanel({
                 key={t.key}
                 track={t}
                 bottleneck={bottleneck?.key === t.key}
+                defaultOpen={t.key === "builder" || t.key === "lab"}
               />
             ))}
           </ul>

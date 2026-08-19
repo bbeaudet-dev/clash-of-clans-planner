@@ -365,7 +365,6 @@ export function Overview({
   village,
   skips,
   skipMode,
-  onSkipMode,
   onToggleSkip,
 }: {
   playerName: string | null;
@@ -376,7 +375,6 @@ export function Overview({
   village: VillageExport | null;
   skips: string[];
   skipMode: boolean;
-  onSkipMode: (enabled: boolean) => void;
   onToggleSkip: (key: string) => void;
 }) {
   const summary = computeBaseSummary(stats, village);
@@ -464,22 +462,6 @@ export function Overview({
                 ? `${formatDuration(summary.rushedSeconds)} rushed`
                 : "0d 0h rushed"}
             </span>
-            {skips.length > 0 && (
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                {skips.length} skipped
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => onSkipMode(!skipMode)}
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-                skipMode
-                  ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                  : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-              }`}
-            >
-              {skipMode ? "Done" : "Skip Mode"}
-            </button>
           </>
         )}
       </div>
