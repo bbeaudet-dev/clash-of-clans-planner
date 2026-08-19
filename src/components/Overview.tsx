@@ -15,6 +15,7 @@ import {
 import { pendingUpgrades } from "@/lib/tracks";
 import { buildingSkipCapacity, getSkipCount } from "@/lib/skipModel";
 import { SkipIcon } from "@/components/icons";
+import { StepHelpTooltip } from "@/components/StepHelpTooltip";
 import { ArmyRow, BuildingRowItem } from "@/components/overview/Rows";
 import {
   LoadingSectionCard,
@@ -153,7 +154,7 @@ export function Overview({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+          <div className="flex flex-wrap items-center gap-5 text-sm text-zinc-700 dark:text-zinc-300">
             <label className="flex items-center gap-2">
               Builders
               <input
@@ -169,7 +170,7 @@ export function Overview({
                     )
                   )
                 }
-                className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                className="w-10 rounded-lg border border-zinc-300 bg-white px-1.5 py-1 text-right font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               />
             </label>
 
@@ -184,32 +185,60 @@ export function Overview({
             </label>
 
             {skipMode ? (
-              <span className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onSaveSkips}
-                  disabled={!skipDraftDirty}
-                  className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Save Skips
-                </button>
-                <button
-                  type="button"
-                  onClick={onDiscardSkipDraft}
-                  className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-                >
-                  Exit Without Saving Skips
-                </button>
+              <span className="flex items-start gap-1.5">
+                <span className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onSaveSkips}
+                    disabled={!skipDraftDirty}
+                    className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Save Skips
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDiscardSkipDraft}
+                    className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  >
+                    Exit Without Saving Skips
+                  </button>
+                </span>
+                <StepHelpTooltip label="What Skip Mode does" align="right">
+                  <p>
+                    Skip Mode lets you mark upgrades you do not plan to finish
+                    for this Town Hall. Skipped levels are removed from upgrade
+                    counts and tracked separately.
+                  </p>
+                  <p className="mt-2">
+                    Changes are drafts while Skip Mode is active. Use{" "}
+                    <strong>Save Skips</strong> to keep them, or exit without
+                    saving to discard the draft.
+                  </p>
+                </StepHelpTooltip>
               </span>
             ) : (
-              <button
-                type="button"
-                onClick={onEnterSkipMode}
-                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-              >
-                <SkipIcon className="h-3.5 w-3.5 text-amber-500" />
-                Enter Skip Mode
-              </button>
+              <span className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onEnterSkipMode}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  <SkipIcon className="h-3.5 w-3.5 text-amber-500" />
+                  Enter Skip Mode
+                </button>
+                <StepHelpTooltip label="What Skip Mode does" align="right">
+                  <p>
+                    Skip Mode lets you mark upgrades you do not plan to finish
+                    for this Town Hall. Skipped levels are removed from upgrade
+                    counts and tracked separately.
+                  </p>
+                  <p className="mt-2">
+                    Changes are drafts while Skip Mode is active. Use{" "}
+                    <strong>Save Skips</strong> to keep them, or exit without
+                    saving to discard the draft.
+                  </p>
+                </StepHelpTooltip>
+              </span>
             )}
           </div>
         </div>

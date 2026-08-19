@@ -4,6 +4,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { useQuery } from "convex/react";
+import { useRouter } from "next/navigation";
 import { OnboardingStepHeader } from "@/components/OnboardingStepHeader";
 
 interface AccountOption {
@@ -38,17 +39,34 @@ export function UserMenu({
   onRequestDeleteAccount: () => void;
   renaming: boolean;
 }) {
+  const router = useRouter();
   const user = useQuery(api.auth.getCurrentUser);
   const accountsLoading = accounts === undefined;
   const selectedAccount = accounts?.find((account) => account._id === selectedAccountId);
   const editingSelectedAccount =
     Boolean(selectedAccountId) && editingAccountId === selectedAccountId;
 
+  async function handleSignOut() {
+    try {
+      await authClient.signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            router.replace("/");
+            router.refresh();
+          },
+        },
+      });
+    } catch {
+      router.replace("/");
+      router.refresh();
+    }
+  }
+
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
       <OnboardingStepHeader
         step="Step 3"
-        title="Save your accounts to come back anytime"
+        title="Return to your accounts anytime"
       />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -63,7 +81,7 @@ export function UserMenu({
         </div>
         <button
           type="button"
-          onClick={() => void authClient.signOut()}
+          onClick={() => void handleSignOut()}
           className="shrink-0 text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           Sign out

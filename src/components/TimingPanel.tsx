@@ -125,7 +125,7 @@ export function TimingPanel({
         {!loading && (stats || village) && (
           <div className="mt-3 grid grid-cols-3 items-end gap-2">
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+              <p className="text-[11px] uppercase tracking-wide text-zinc-400">
                 Maxed
               </p>
               <p
@@ -136,7 +136,7 @@ export function TimingPanel({
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+              <p className="text-[11px] uppercase tracking-wide text-zinc-400">
                 Rushed
               </p>
               <p
@@ -149,10 +149,10 @@ export function TimingPanel({
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-400">
+              <p className="text-[11px] uppercase tracking-wide text-zinc-400">
                 Skipped
               </p>
-              <p className="inline-flex items-center font-mono text-base font-semibold leading-none text-amber-600 dark:text-amber-400">
+              <p className="inline-flex items-end font-mono text-base font-semibold leading-none text-amber-600 dark:text-amber-400">
                 {totalSkipped}
                 <SkipIcon className="h-4 w-4" />
               </p>

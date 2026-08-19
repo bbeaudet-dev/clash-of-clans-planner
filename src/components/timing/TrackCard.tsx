@@ -80,19 +80,19 @@ export function TrackCard({
                 · {formatDuration(track.workSeconds)} ÷ {track.parallel}
               </span>
             )}
-            {showCriticalPath && (
-              <span
-                className={
-                  criticalLimited
-                    ? "font-medium text-amber-600 dark:text-amber-400"
-                    : undefined
-                }
-              >
-                · max item {formatDuration(criticalPath)}
-              </span>
-            )}
           </span>
           {!done && <span>done ~ {finishDate(track.finishSeconds)}</span>}
+        </div>
+      )}
+      {showCriticalPath && (
+        <div
+          className={`mt-0.5 text-xs ${
+            criticalLimited
+              ? "font-medium text-amber-600 dark:text-amber-400"
+              : "text-zinc-500 dark:text-zinc-400"
+          }`}
+        >
+          max item {formatDuration(criticalPath)}
         </div>
       )}
     </>
