@@ -5,7 +5,12 @@ import {
   upgradeTime,
   VillageStats,
 } from "./gameData";
-import { BuildingRow, buildingProgress, VillageExport } from "./villageExport";
+import {
+  BuildingRow,
+  buildingProgress,
+  InProgressUpgrade,
+  VillageExport,
+} from "./villageExport";
 
 // Walls are treated as one flat block of "levels" in the % (weighted only by
 // how many of your walls are at the current cap), rather than tracking each
@@ -87,6 +92,37 @@ function labSubKey(category: string, resource: string | null): string {
 export function itemTrackKey(name: string): TrackKey {
   const cat = getEntity(name)?.category;
   return (cat && ARMY_TRACK[cat]) || "builder";
+}
+
+/**
+ * The upgrades still genuinely in progress right now: the export's frozen
+ * timers are re-based to the wall clock (finished-since-export ones drop off),
+ * and army upgrades the API has already advanced past are excluded. Returned
+ * items carry their live remaining seconds.
+ */
+export function pendingUpgrades(
+  village: VillageExport,
+  stats: VillageStats | null
+): InProgressUpgrade[] {
+  const nowSec = Date.now() / 1000;
+  const statLevel = new Map<string, number>();
+  if (stats) {
+    for (const g of stats.groups)
+      for (const r of g.rows) statLevel.set(r.name, r.level);
+  }
+  const out: InProgressUpgrade[] = [];
+  for (const u of village.inProgress) {
+    const cat = getEntity(u.name)?.category;
+    if (cat && ARMY_TRACK[cat]) {
+      const lvl = statLevel.get(u.name);
+      if (lvl !== undefined && lvl !== u.level) continue; // API already advanced
+    }
+    const left =
+      u.finishesAt !== null ? u.finishesAt - nowSec : u.secondsLeft;
+    if (left <= 0) continue; // finished since the export
+    out.push({ ...u, secondsLeft: Math.max(0, Math.round(left)) });
+  }
+  return out.sort((a, b) => a.secondsLeft - b.secondsLeft);
 }
 
 // Fold a raw building category (from the entity lookup) into the Builders
@@ -269,29 +305,45 @@ export function computeTracks(
       }
     }
 
-    // Replace each live upgrade's current step with its real remaining timer.
-    // Building timers adjust the Builders track; army timers (heroes/siege/
-    // troops/spells/pets) adjust whichever track the API-derived work landed on.
+    // Replace each live upgrade's current step with its REAL remaining timer,
+    // recomputed against the wall clock (the export froze secondsLeft at its
+    // timestamp). A finished-since-export timer contributes 0, so it no longer
+    // inflates the track. Building timers adjust the Builders track; army timers
+    // adjust whichever track the API-derived work landed on.
+    const nowSec = Date.now() / 1000;
+    const statLevel = new Map<string, number>();
+    if (stats) {
+      for (const g of stats.groups)
+        for (const r of g.rows) statLevel.set(r.name, r.level);
+    }
     for (const u of village.inProgress) {
       const cat = getEntity(u.name)?.category;
       if (!cat) continue;
       const fullStep = upgradeTime(u.name, u.level, u.level + 1);
+      const left =
+        u.finishesAt !== null
+          ? Math.max(0, u.finishesAt - nowSec)
+          : u.secondsLeft;
       const armyTrack = ARMY_TRACK[cat];
       if (armyTrack) {
         // Only adjust army work the stats loop actually added.
         if (!stats || skips.has(`army:${u.name}`)) continue;
+        // If the API level already moved past this step, the upgrade completed
+        // and is fully reflected in stats — don't double-remove it.
+        const lvl = statLevel.get(u.name);
+        if (lvl !== undefined && lvl !== u.level) continue;
         const subKey =
           armyTrack === "lab"
             ? labSubKey(cat, getEntity(u.name)?.resource ?? null)
             : armyTrack === "builder"
               ? "hero"
               : null; // pets have no sub-group
-        applyInProgress(armyTrack, subKey, fullStep, u.secondsLeft);
+        applyInProgress(armyTrack, subKey, fullStep, left);
       } else {
         if (skips.has(`building:${u.name}`)) continue;
         const subKey = builderSubForCategory(cat);
         if (!subKey) continue; // helper (gold-only, no build time)
-        applyInProgress("builder", subKey, fullStep, u.secondsLeft);
+        applyInProgress("builder", subKey, fullStep, left);
       }
     }
   }

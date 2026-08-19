@@ -13,7 +13,7 @@ import {
   buildingProgress,
   VillageExport,
 } from "@/lib/villageExport";
-import { computeBaseSummary, formatDuration } from "@/lib/tracks";
+import { computeBaseSummary, formatDuration, pendingUpgrades } from "@/lib/tracks";
 
 const SKIPPABLE_ARMY_CATEGORIES = new Set<Category>([
   "hero",
@@ -381,10 +381,11 @@ export function Overview({
   const townHallLevel =
     stats?.townHallLevel ?? village?.townHallLevel ?? fallbackTownHallLevel ?? 0;
   const skipSet = new Set(skips);
-  // How many live upgrade timers each item has, so bars can show as "active"
-  // and extend to the level being worked toward.
+  // How many genuinely-active upgrades each item has (finished-since-export or
+  // API-superseded timers excluded), so bars show as "active" and extend to the
+  // level being worked toward.
   const inProgressCount = new Map<string, number>();
-  for (const u of village?.inProgress ?? []) {
+  for (const u of village ? pendingUpgrades(village, stats) : []) {
     inProgressCount.set(u.name, (inProgressCount.get(u.name) ?? 0) + 1);
   }
 

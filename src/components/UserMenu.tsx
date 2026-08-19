@@ -67,7 +67,7 @@ export function UserMenu({
           <option value="">Loading accounts...</option>
         ) : (
           <>
-            <option value="">Current lookup</option>
+            <option value="">Tag lookup</option>
             {accounts.map((account) => (
               <option key={account._id} value={account._id}>
                 {account.name} ({account.tag})

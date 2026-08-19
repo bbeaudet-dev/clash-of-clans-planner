@@ -4,6 +4,7 @@ import {
   computeTracks,
   formatDuration,
   itemTrackKey,
+  pendingUpgrades,
   Track,
 } from "@/lib/tracks";
 
@@ -303,19 +304,22 @@ export function TimingPanel({
         )}
       </div>
 
-      {!loading && village && village.inProgress.length > 0 && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
-          <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
-            Currently upgrading ({village.inProgress.length})
-          </h3>
-          {(() => {
-            const builders = village.inProgress.filter(
-              (u) => itemTrackKey(u.name) === "builder"
-            );
-            const labPets = village.inProgress.filter(
-              (u) => itemTrackKey(u.name) !== "builder"
-            );
-            return (
+      {!loading &&
+        village &&
+        (() => {
+          const upgrading = pendingUpgrades(village, stats);
+          if (upgrading.length === 0) return null;
+          const builders = upgrading.filter(
+            (u) => itemTrackKey(u.name) === "builder"
+          );
+          const labPets = upgrading.filter(
+            (u) => itemTrackKey(u.name) !== "builder"
+          );
+          return (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
+              <h3 className="mb-2 text-sm font-semibold text-sky-800 dark:text-sky-300">
+                Currently upgrading ({upgrading.length})
+              </h3>
               <div className="flex flex-col gap-2 text-sm text-sky-900 dark:text-sky-200">
                 {builders.length > 0 && <UpgradeList items={builders} />}
                 {builders.length > 0 && labPets.length > 0 && (
@@ -323,10 +327,9 @@ export function TimingPanel({
                 )}
                 {labPets.length > 0 && <UpgradeList items={labPets} />}
               </div>
-            );
-          })()}
-        </div>
-      )}
+            </div>
+          );
+        })()}
     </aside>
   );
 }

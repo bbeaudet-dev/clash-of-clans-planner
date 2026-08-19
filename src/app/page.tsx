@@ -112,6 +112,7 @@ export default function Home() {
   const [savingAccount, setSavingAccount] = useState(false);
 
   const [village, setVillage] = useState<VillageExport | null>(null);
+  const [apiUpdatedAt, setApiUpdatedAt] = useState<number | null>(null);
   const [builderCount, setBuilderCount] = useState(6);
   const [goldPass, setGoldPass] = useState(false);
   const [skips, setSkips] = useState<string[]>([]);
@@ -160,8 +161,22 @@ export default function Home() {
       setSkips(accountData.account.skips ?? []);
       if (accountData.apiSnapshot?.raw) {
         setPlayer(accountData.apiSnapshot.raw as ApiPlayer);
+        setApiUpdatedAt(accountData.apiSnapshot.fetchedAt);
       } else {
         setPlayer(null);
+        setApiUpdatedAt(null);
+      }
+
+      // Refresh army/hero levels from the API in the background so a cached
+      // snapshot (e.g. a hero that finished upgrading yesterday) doesn't linger
+      // as stale. Falls back silently to the snapshot if the fetch fails.
+      if (accountData.account.tag) {
+        void fetchPlayer({ tag: accountData.account.tag })
+          .then((fresh) => {
+            setPlayer(fresh as ApiPlayer);
+            setApiUpdatedAt(Date.now());
+          })
+          .catch(() => {});
       }
 
       if (accountData.exportSnapshot?.raw) {
@@ -190,6 +205,7 @@ export default function Home() {
     try {
       const result = (await fetchPlayer({ tag })) as ApiPlayer;
       setPlayer(result);
+      setApiUpdatedAt(Date.now());
       setTag(result.tag);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -289,6 +305,7 @@ export default function Home() {
     setSkips(account.skips ?? []);
     setSkipMode(false);
     setPlayer(null);
+    setApiUpdatedAt(null);
     setVillage(null);
     setImportSuccess(null);
   }
@@ -327,6 +344,9 @@ export default function Home() {
 
   const stats = player ? buildVillageStats(player) : null;
   const hasData = stats || village;
+  // While an account is active, the tag field is locked; users switch the
+  // account selector to "Tag lookup" to look something else up.
+  const lookupLocked = Boolean(effectiveSelectedAccountId);
   const overviewName = player?.name ?? selectedAccount?.name ?? null;
   const overviewTag = player?.tag ?? selectedAccount?.tag ?? null;
   const overviewTownHallLevel =
@@ -368,27 +388,45 @@ export default function Home() {
             <AuthPanel />
           )}
 
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              value={tag}
-              onChange={(e) => {
-                setTag(e.target.value);
-                setSelectedAccountId(null);
-                setSkips([]);
-                setSkipMode(false);
-              }}
-              placeholder="#PLAYERTAG"
-              spellCheck={false}
-              className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            />
-            <button
-              type="submit"
-              disabled={loading || tag.trim().length === 0}
-              className="rounded-lg bg-zinc-900 px-5 py-2.5 font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              {loading ? "Loading…" : "Look up"}
-            </button>
-          </form>
+          <div>
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <input
+                value={tag}
+                onChange={(e) => {
+                  setTag(e.target.value);
+                  setSelectedAccountId(null);
+                  setSkips([]);
+                  setSkipMode(false);
+                }}
+                placeholder="#PLAYERTAG"
+                spellCheck={false}
+                disabled={lookupLocked}
+                className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 font-mono text-zinc-900 outline-none focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+              />
+              <button
+                type="submit"
+                disabled={lookupLocked || loading || tag.trim().length === 0}
+                className="rounded-lg bg-zinc-900 px-5 py-2.5 font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              >
+                {loading ? "Loading…" : "Look up"}
+              </button>
+            </form>
+
+            {apiUpdatedAt ? (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                <span aria-hidden>✓</span>
+                Last updated: {new Date(apiUpdatedAt).toLocaleString()}
+              </p>
+            ) : (
+              lookupLocked && (
+                <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                  Switch the account selector to{" "}
+                  <span className="font-medium">Tag lookup</span> to look up
+                  another player.
+                </p>
+              )
+            )}
+          </div>
 
           <div>
             <button
