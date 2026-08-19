@@ -287,7 +287,7 @@ function SectionCard({
 }) {
   return (
     <section
-      className={`rounded-xl border p-4 ${
+      className={`mb-6 break-inside-avoid rounded-xl border p-4 ${
         locked
           ? "border-zinc-200/70 bg-zinc-50/50 dark:border-zinc-800/60 dark:bg-zinc-950/40"
           : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
@@ -320,7 +320,7 @@ function SectionCard({
 
 function LoadingSectionCard({ title }: { title: string }) {
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="mb-6 break-inside-avoid rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {title}
       </h3>
@@ -464,14 +464,14 @@ export function Overview({
       </div>
 
       {loading && !stats && !village ? (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="gap-6 sm:columns-2">
           <LoadingSectionCard title="Army" />
           <LoadingSectionCard title="Base" />
           <LoadingSectionCard title="Laboratory" />
           <LoadingSectionCard title="Builders" />
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="gap-6 sm:columns-2">
           {/* Hero Equipment is rendered last (after buildings); it's ore-upgraded
               and less of a planning concern than the rest of the army. */}
           {CATEGORY_ORDER.filter((c) => c !== "equipment").map(
