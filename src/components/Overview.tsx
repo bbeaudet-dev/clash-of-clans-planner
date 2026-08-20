@@ -175,13 +175,29 @@ export function Overview({
             </label>
 
             <label className="flex cursor-pointer items-center gap-2">
-              Gold Pass
+              <span className="font-medium text-amber-700 dark:text-amber-300">
+                Gold Pass
+              </span>
               <input
                 type="checkbox"
                 checked={goldPass}
                 onChange={(e) => onGoldPass(e.target.checked)}
-                className="h-4 w-4 accent-amber-500"
+                className="sr-only"
               />
+              <span
+                className={`relative inline-flex h-5 w-9 items-center rounded-full border transition-colors ${
+                  goldPass
+                    ? "border-yellow-500 bg-linear-to-r from-yellow-500 to-amber-400"
+                    : "border-zinc-300 bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800"
+                }`}
+                aria-hidden="true"
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                    goldPass ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
             </label>
 
             {skipMode ? (
